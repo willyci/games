@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>2048</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.board { border-collapse: collapse; margin: 0 auto; border: 3px solid #000; }
+table.board td { border: 1px solid #999; padding: 3px; text-align: center; vertical-align: middle; background: #fff; }
+.tile { box-sizing: border-box; margin: 0 auto; border: 2px solid #000; font-weight: bold; text-align: center; overflow: hidden; font-family: Arial, Helvetica, sans-serif; }
+.k1 { background: #fff; color: #000; }
+.k2 { background: #ccc; color: #000; }
+.k3 { background: #666; color: #fff; }
+.k4 { background: #000; color: #fff; }
+.k5 { background: #000; color: #fff; }
+.k5 div { box-sizing: border-box; border: 2px solid #fff; }
+.status .btn { margin: 6px 4px 0; }
+table.dpad { border-collapse: collapse; margin: 0 auto; }
+table.dpad td { padding: 2px; text-align: center; }
+.dbtn { width: 72px; height: 60px; font-size: 26px; padding: 0; margin: 0; }
+.score { display: inline-block; margin: 0 10px; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>2048</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div class="wrap" id="wrap"><table class="board" id="board"></table></div>
+<div class="controls">
+  <table class="dpad">
+    <tr><td></td><td><button class="btn dbtn" id="btnU">&#9650;</button></td><td></td></tr>
+    <tr><td><button class="btn dbtn" id="btnL">&#9664;</button></td>
+        <td><button class="btn dbtn" id="btnUndo" style="font-size:16px">Undo</button></td>
+        <td><button class="btn dbtn" id="btnR">&#9654;</button></td></tr>
+    <tr><td></td><td><button class="btn dbtn" id="btnD">&#9660;</button></td><td></td></tr>
+  </table>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  Use the arrow buttons (or swipe on the board, or the keyboard arrows) to slide all tiles.
+  When two tiles with the same number touch, they merge into one with their sum.
+  After every move a new 2 (or sometimes 4) appears. Reach the 2048 tile!
+  Undo can step back up to 20 moves. Your game is saved automatically.
+</div>
+<script>
+(function () {
+  var N = 4, MAXUNDO = 20;
+  var grid = [], score = 0, best = 0, history = [], keepGoing = false, over = false;
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  function cellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor(Math.min(w - 40, h - 440) / N);
+    return Math.max(50, Math.min(130, s));
+  }
+
+  function empties() { var e = [], i; for (i = 0; i < N * N; i++) if (!grid[i]) e.push(i); return e; }
+
+  function spawn() {
+    var e = empties();
+    if (!e.length) return;
+    grid[e[Math.floor(Math.random() * e.length)]] = Math.random() < 0.9 ? 2 : 4;
+  }
+
+  function maxTile() { var m = 0, i; for (i = 0; i < grid.length; i++) if (grid[i] > m) m = grid[i]; return m; }
+
+  // Indices of line k, ordered from the edge tiles slide towards.
+  function lineIdx(dir, k) {
+    var a = [], j;
+    for (j = 0; j < N; j++) {
+      if (dir === 'L') a.push(k * N + j);
+      else if (dir === 'R') a.push(k * N + (N - 1 - j));
+      else if (dir === 'U') a.push(j * N + k);
+      else a.push((N - 1 - j) * N + k);
+    }
+    return a;
+  }
+
+  // Returns points gained, or -1 if nothing moved. Mutates g.
+  function slide(g, dir) {
+    var moved = false, gained = 0, k, j, idx, vals, out;
+    for (k = 0; k < N; k++) {
+      idx = lineIdx(dir, k); vals = []; out = [];
+      for (j = 0; j < N; j++) if (g[idx[j]]) vals.push(g[idx[j]]);
+      for (j = 0; j < vals.length; j++) {
+        if (j + 1 < vals.length && vals[j] === vals[j + 1]) { out.push(vals[j] * 2); gained += vals[j] * 2; j++; }
+        else out.push(vals[j]);
+      }
+      while (out.length < N) out.push(0);
+      for (j = 0; j < N; j++) { if (g[idx[j]] !== out[j]) moved = true; g[idx[j]] = out[j]; }
+    }
+    return moved ? gained : -1;
+  }
+
+  function canMove() {
+    var r, c, v;
+    for (r = 0; r < N; r++) for (c = 0; c < N; c++) {
+      v = grid[r * N + c];
+      if (!v) return true;
+      if (c + 1 < N && grid[r * N + c + 1] === v) return true;
+      if (r + 1 < N && grid[(r + 1) * N + c] === v) return true;
+    }
+    return false;
+  }
+
+  function wonPause() { return !keepGoing && maxTile() >= 2048; }
+
+  function save() {
+    try {
+      store('2048.state', JSON.stringify({ g: grid, s: score, k: keepGoing, h: history }));
+      store('2048.best', String(best));
+    } catch (e) {}
+  }
+
+  function load() {
+    var raw = store('2048.state'), st;
+    best = parseInt(store('2048.best'), 10) || 0;
+    if (!raw) return false;
+    try { st = JSON.parse(raw); } catch (e) { return false; }
+    if (!st || !st.g || st.g.length !== N * N) return false;
+    grid = st.g; score = st.s || 0; keepGoing = !!st.k; history = st.h || [];
+    if (score > best) best = score;
+    over = !canMove();
+    return true;
+  }
+
+  function newGame() {
+    var i;
+    grid = []; for (i = 0; i < N * N; i++) grid.push(0);
+    score = 0; history = []; keepGoing = false; over = false;
+    spawn(); spawn();
+    save(); build(); render();
+  }
+
+  function move(dir) {
+    if (over || wonPause()) return;
+    var g = grid.slice(), gained = slide(g, dir);
+    if (gained < 0) return;
+    history.push({ g: grid.slice(), s: score });
+    if (history.length > MAXUNDO) history.shift();
+    grid = g; score += gained;
+    if (score > best) best = score;
+    spawn();
+    over = !canMove();
+    save(); render();
+  }
+
+  function undo() {
+    if (!history.length) return;
+    var h = history.pop();
+    grid = h.g; score = h.s; over = false;
+    if (maxTile() < 2048) keepGoing = false;
+    save(); render();
+  }
+
+  function build() {
+    var s = cellSize(), html = '', r, c;
+    for (r = 0; r < N; r++) {
+      html += '<tr>';
+      for (c = 0; c < N; c++) html += '<td style="width:' + s + 'px;height:' + s + 'px"></td>';
+      html += '</tr>';
+    }
+    boardEl.innerHTML = html;
+  }
+
+  function tileHtml(v, s) {
+    var w = s, txt = String(v), len = txt.length, fs, k;
+    fs = Math.floor(s * (len <= 2 ? 0.45 : len === 3 ? 0.36 : len === 4 ? 0.28 : 0.22));
+    if (v <= 4) k = 'k1'; else if (v <= 32) k = 'k2'; else if (v <= 256) k = 'k3'; else if (v < 2048) k = 'k4'; else k = 'k5';
+    if (k === 'k5') {
+      return '<div class="tile k5" style="width:' + w + 'px;height:' + w + 'px;padding:3px;font-size:' + fs + 'px">' +
+        '<div style="width:' + (w - 10) + 'px;height:' + (w - 10) + 'px;line-height:' + (w - 14) + 'px">' + txt + '</div></div>';
+    }
+    return '<div class="tile ' + k + '" style="width:' + w + 'px;height:' + w + 'px;line-height:' + (w - 4) + 'px;font-size:' + fs + 'px">' + txt + '</div>';
+  }
+
+  function render() {
+    var tds = boardEl.getElementsByTagName('td'), i, s = cellSize();
+    for (i = 0; i < tds.length; i++) tds[i].innerHTML = grid[i] ? tileHtml(grid[i], s) : '';
+    var sc = '<span class="score">Score: ' + score + '</span><span class="score">Best: ' + best + '</span>';
+    if (over) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'No moves left! Final score: ' + score + '<br>Tap New to play again, or Undo.';
+    } else if (wonPause()) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'You reached 2048! Score: ' + score + '<br><button class="btn" id="btnKeep">Keep going</button>';
+      document.getElementById('btnKeep').onclick = function () { keepGoing = true; save(); render(); };
+    } else {
+      statusEl.className = 'status';
+      statusEl.innerHTML = sc;
+    }
+    document.getElementById('btnUndo').disabled = history.length === 0;
+  }
+
+  document.getElementById('btnU').onclick = function () { move('U'); };
+  document.getElementById('btnD').onclick = function () { move('D'); };
+  document.getElementById('btnL').onclick = function () { move('L'); };
+  document.getElementById('btnR').onclick = function () { move('R'); };
+  document.getElementById('btnUndo').onclick = undo;
+  document.getElementById('btnNew').onclick = function () {
+    if (score > 0 && !over && !window.confirm('Start a new game?')) return;
+    newGame();
+  };
+
+  document.onkeydown = function (e) {
+    e = e || window.event;
+    var k = e.keyCode, d = k === 37 ? 'L' : k === 38 ? 'U' : k === 39 ? 'R' : k === 40 ? 'D' : null;
+    if (!d) return true;
+    move(d);
+    if (e.preventDefault) e.preventDefault();
+    return false;
+  };
+
+  // Swipe on the board only.
+  var tx = null, ty = null;
+  var wrapEl = boardEl;
+  wrapEl.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) { tx = null; return; }
+    tx = e.touches[0].clientX; ty = e.touches[0].clientY;
+  }, false);
+  wrapEl.addEventListener('touchmove', function (e) { if (tx !== null) e.preventDefault(); }, false);
+  wrapEl.addEventListener('touchend', function (e) {
+    if (tx === null) return;
+    var t = e.changedTouches[0], dx = t.clientX - tx, dy = t.clientY - ty;
+    tx = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 30) return;
+    e.preventDefault();
+    if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'R' : 'L');
+    else move(dy > 0 ? 'D' : 'U');
+  }, false);
+
+  if (load()) { build(); render(); } else newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Sudoku</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.board { border-collapse: collapse; margin: 0 auto; border: 3px solid #000; }
+table.board td {
+  border: 1px solid #000; padding: 0; text-align: center; vertical-align: middle;
+  cursor: pointer; background: #fff; color: #000; font-weight: normal; overflow: hidden;
+}
+table.board td.bR { border-right: 3px solid #000; }
+table.board td.bB { border-bottom: 3px solid #000; }
+table.board td.giv { font-weight: bold; }
+table.board td.peer { background: #e6e6e6; }
+table.board td.same { background: #bdbdbd; }
+table.board td.sel { background: #000; color: #fff; }
+table.board td.bad { text-decoration: line-through underline; }
+.nt { font-family: "Courier New", Courier, monospace; font-weight: normal; line-height: 1.05; white-space: nowrap; }
+table.pad { border-collapse: collapse; margin: 0 auto; }
+table.pad td { padding: 0; text-align: center; }
+.btn.kp { padding: 0; line-height: 1.1; font-size: 22px; min-width: 0; }
+.btn.kp .cnt { font-size: 12px; font-weight: normal; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>Sudoku</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div class="wrap"><table class="board" id="board"></table></div>
+<div class="controls">
+  <table class="pad" id="pad"></table>
+  <div>
+    <button class="btn" id="btnNotes">Notes</button>
+    <button class="btn" id="btnErase">Erase</button>
+    <button class="btn" id="btnUndo">Undo</button>
+    <button class="btn" id="btnCheck">Check</button>
+    <button class="btn" id="btnHint">Hint</button>
+  </div>
+  <div>
+    <select class="btn" id="selDiff">
+      <option value="easy">Easy</option>
+      <option value="medium" selected>Medium</option>
+      <option value="hard">Hard</option>
+    </select>
+  </div>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  Fill the grid so every row, every column and every 3&times;3 box contains the digits 1 to 9 exactly once.
+  Tap a square to select it, then tap a number below. Bold numbers are given and cannot be changed.
+  Turn on <b>Notes</b> to pencil in small candidate digits instead. <b>Check</b> strikes through wrong entries,
+  <b>Hint</b> fills in the selected square (or a random one). The small number under each key shows how many
+  of that digit are still to be placed. Your game is saved automatically; tap New for a fresh puzzle.
+</div>
+<script>
+(function () {
+  var GIVENS = { easy: 38, medium: 30, hard: 25 };
+  var ALL = 511, i, r, c;
+  var PC = [0], BITD = [];
+  for (i = 1; i < 512; i++) PC[i] = PC[i >> 1] + (i & 1);
+  for (i = 0; i < 9; i++) BITD[1 << i] = i + 1;
+  var ROW = [], COL = [], BOX = [], PEERS = [];
+  for (i = 0; i < 81; i++) {
+    ROW[i] = Math.floor(i / 9); COL[i] = i % 9;
+    BOX[i] = Math.floor(ROW[i] / 3) * 3 + Math.floor(COL[i] / 3);
+  }
+  for (i = 0; i < 81; i++) {
+    PEERS[i] = [];
+    for (r = 0; r < 81; r++) if (r !== i && (ROW[r] === ROW[i] || COL[r] === COL[i] || BOX[r] === BOX[i])) PEERS[i].push(r);
+  }
+
+  var puzzle = [], sol = [], vals = [], notes = [], bad = [], hist = [];
+  var sel = -1, notesMode = false, diff = 'medium', done = false, hints = 0, msg = '', busy = false;
+  var boardEl = document.getElementById('board');
+  var padEl = document.getElementById('pad');
+  var statusEl = document.getElementById('status');
+  var selDiff = document.getElementById('selDiff');
+  var tds = [], keys = [], cache = [], cellS = 40;
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  function shuffle(a) {
+    var k, j, t;
+    for (k = a.length - 1; k > 0; k--) { j = Math.floor(Math.random() * (k + 1)); t = a[k]; a[k] = a[j]; a[j] = t; }
+    return a;
+  }
+
+  // ---------- Generator / solver (bitmasks) ----------
+  function fillGrid() {
+    var g = [], rows = [0, 0, 0, 0, 0, 0, 0, 0, 0], cols = rows.slice(), boxes = rows.slice(), k;
+    for (k = 0; k < 81; k++) g.push(0);
+    function rec() {
+      var best = -1, bestC = 10, bestM = 0, j, m, ds, d, bit;
+      for (j = 0; j < 81; j++) {
+        if (g[j]) continue;
+        m = ALL & ~(rows[ROW[j]] | cols[COL[j]] | boxes[BOX[j]]);
+        if (PC[m] < bestC) { bestC = PC[m]; best = j; bestM = m; if (bestC <= 1) break; }
+      }
+      if (best < 0) return true;
+      if (bestC === 0) return false;
+      ds = [];
+      for (d = 1; d <= 9; d++) if (bestM & (1 << (d - 1))) ds.push(d);
+      shuffle(ds);
+      for (j = 0; j < ds.length; j++) {
+        bit = 1 << (ds[j] - 1);
+        g[best] = ds[j]; rows[ROW[best]] |= bit; cols[COL[best]] |= bit; boxes[BOX[best]] |= bit;
+        if (rec()) return true;
+        g[best] = 0; rows[ROW[best]] &= ~bit; cols[COL[best]] &= ~bit; boxes[BOX[best]] &= ~bit;
+      }
+      return false;
+    }
+    rec();
+    return g;
+  }
+
+  // Counts solutions of g (0 = empty), stopping at limit.
+  function countSolutions(g, limit) {
+    var rows = [0, 0, 0, 0, 0, 0, 0, 0, 0], cols = rows.slice(), boxes = rows.slice(), empt = [], k, bit, count = 0;
+    for (k = 0; k < 81; k++) {
+      if (g[k]) {
+        bit = 1 << (g[k] - 1);
+        if ((rows[ROW[k]] | cols[COL[k]] | boxes[BOX[k]]) & bit) return 0;
+        rows[ROW[k]] |= bit; cols[COL[k]] |= bit; boxes[BOX[k]] |= bit;
+      } else empt.push(k);
+    }
+    var n = empt.length;
+    function rec(p) {
+      if (p === n) { count++; return count >= limit; }
+      var best = -1, bestC = 10, bestM = 0, q, j, m, t, b;
+      for (q = p; q < n; q++) {
+        j = empt[q];
+        m = ALL & ~(rows[ROW[j]] | cols[COL[j]] | boxes[BOX[j]]);
+        if (PC[m] < bestC) { bestC = PC[m]; best = q; bestM = m; if (bestC <= 1) break; }
+      }
+      if (bestC === 0) return false;
+      t = empt[p]; empt[p] = empt[best]; empt[best] = t;
+      j = empt[p];
+      var rr = ROW[j], cc = COL[j], bb = BOX[j], stop = false;
+      while (bestM) {
+        b = bestM & -bestM; bestM ^= b;
+        rows[rr] |= b; cols[cc] |= b; boxes[bb] |= b;
+        stop = rec(p + 1);
+        rows[rr] &= ~b; cols[cc] &= ~b; boxes[bb] &= ~b;
+        if (stop) break;
+      }
+      t = empt[p]; empt[p] = empt[best]; empt[best] = t;
+      return stop;
+    }
+    rec(0);
+    return count;
+  }
+
+  function generate(target) {
+    var best = null, bestN = 99, attempt, s, p, order, n, k, idx, v;
+    for (attempt = 0; attempt < 6; attempt++) {
+      s = fillGrid(); p = s.slice(); n = 81;
+      order = [];
+      for (k = 0; k < 81; k++) order.push(k);
+      shuffle(order);
+      for (k = 0; k < 81 && n > target; k++) {
+        idx = order[k]; v = p[idx]; p[idx] = 0;
+        if (countSolutions(p, 2) !== 1) p[idx] = v; else n--;
+      }
+      if (n < bestN) { bestN = n; best = { p: p, s: s }; }
+      if (n <= target) break;
+    }
+    return best;
+  }
+
+  // ---------- Game ----------
+  function cellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor(Math.min(w - 24, h - 380) / 9);
+    return Math.max(36, Math.min(72, s));
+  }
+
+  function newGame() {
+    if (busy) return;
+    busy = true;
+    diff = selDiff.value;
+    store('sudoku.diff', diff);
+    statusEl.className = 'status';
+    statusEl.innerHTML = 'Generating puzzle&hellip;';
+    setTimeout(function () {
+      var g = generate(GIVENS[diff] || 30), k;
+      puzzle = g.p; sol = g.s;
+      vals = puzzle.slice(); notes = []; bad = [];
+      for (k = 0; k < 81; k++) { notes.push(0); bad.push(0); }
+      hist = []; sel = -1; done = false; hints = 0; msg = '';
+      busy = false;
+      save(); render();
+    }, 50);
+  }
+
+  function save() {
+    try {
+      store('sudoku.state', JSON.stringify({ p: puzzle.join(''), s: sol.join(''), v: vals.join(''), n: notes, b: bad,
+        h: hist.slice(-200), sel: sel, d: diff, done: done, hints: hints }));
+    } catch (e) {}
+  }
+
+  function strToArr(s) { var a = [], k; for (k = 0; k < s.length; k++) a.push(parseInt(s.charAt(k), 10)); return a; }
+
+  function load() {
+    try {
+      var o = JSON.parse(store('sudoku.state'));
+      if (!o || !o.p || o.p.length !== 81 || o.s.length !== 81 || o.v.length !== 81 || o.n.length !== 81) return false;
+      puzzle = strToArr(o.p); sol = strToArr(o.s); vals = strToArr(o.v);
+      notes = o.n; bad = o.b && o.b.length === 81 ? o.b : notes.slice();
+      if (!(o.b && o.b.length === 81)) for (var k = 0; k < 81; k++) bad[k] = 0;
+      hist = o.h || []; sel = typeof o.sel === 'number' ? o.sel : -1;
+      diff = o.d || 'medium'; done = !!o.done; hints = o.hints || 0;
+      selDiff.value = diff;
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function build() {
+    cellS = cellSize();
+    var s = cellS, html = '', k, cls, fs = Math.floor(s * 0.62);
+    for (r = 0; r < 9; r++) {
+      html += '<tr>';
+      for (c = 0; c < 9; c++) {
+        k = r * 9 + c;
+        cls = '';
+        if (c === 2 || c === 5) cls += ' bR';
+        if (r === 2 || r === 5) cls += ' bB';
+        html += '<td data-i="' + k + '" data-b="' + cls + '" style="width:' + s + 'px;height:' + s + 'px;font-size:' + fs + 'px"></td>';
+      }
+      html += '</tr>';
+    }
+    boardEl.innerHTML = html;
+    tds = boardEl.getElementsByTagName('td');
+    cache = [];
+
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var kw = Math.max(36, Math.min(64, Math.floor((w - 16) / 9) - 8));
+    html = '<tr>';
+    for (k = 1; k <= 9; k++) html += '<td><button class="btn kp" data-d="' + k + '" style="width:' + kw + 'px;height:56px"></button></td>';
+    html += '</tr>';
+    padEl.innerHTML = html;
+    keys = padEl.getElementsByTagName('button');
+  }
+
+  function notesHTML(m) {
+    var h = '<div class="nt" style="font-size:' + Math.max(9, Math.floor(cellS * 0.27)) + 'px">', d;
+    for (d = 1; d <= 9; d++) {
+      h += (m & (1 << (d - 1))) ? d : '&nbsp;';
+      if (d % 3) h += '&nbsp;'; else if (d < 9) h += '<br>';
+    }
+    return h + '</div>';
+  }
+
+  function remaining() { var n = 0, k; for (k = 0; k < 81; k++) if (!vals[k]) n++; return n; }
+
+  function render() {
+    var k, cls, v, sv = sel >= 0 ? vals[sel] : 0, html, counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    for (k = 0; k < 81; k++) {
+      v = vals[k];
+      if (v) counts[v]++;
+      cls = tds[k].getAttribute('data-b') + (puzzle[k] ? ' giv' : '');
+      if (k === sel) cls += ' sel';
+      else if (sv && v === sv) cls += ' same';
+      else if (sel >= 0 && (ROW[k] === ROW[sel] || COL[k] === COL[sel] || BOX[k] === BOX[sel])) cls += ' peer';
+      if (bad[k] && v) cls += ' bad';
+      html = v ? String(v) : (notes[k] ? notesHTML(notes[k]) : '&nbsp;');
+      if (cache[k] !== cls + '|' + html) {
+        cache[k] = cls + '|' + html;
+        tds[k].className = cls;
+        tds[k].innerHTML = html;
+      }
+    }
+    for (k = 1; k <= 9; k++) {
+      html = k + '<br><span class="cnt">' + (counts[k] >= 9 ? '&nbsp;' : (9 - counts[k]) + ' left') + '</span>';
+      if (keys[k - 1].innerHTML !== html) keys[k - 1].innerHTML = html;
+      keys[k - 1].disabled = done || counts[k] >= 9;
+    }
+    document.getElementById('btnNotes').className = notesMode ? 'btn on' : 'btn';
+    document.getElementById('btnUndo').disabled = done || hist.length === 0;
+    document.getElementById('btnHint').disabled = done;
+    document.getElementById('btnCheck').disabled = done;
+    document.getElementById('btnErase').disabled = done;
+    var label = diff.charAt(0).toUpperCase() + diff.substring(1);
+    if (done) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'Solved! ' + (hints ? '(' + hints + ' hint' + (hints === 1 ? '' : 's') + ') ' : '') + 'Tap New to play again.';
+    } else {
+      statusEl.className = 'status';
+      statusEl.innerHTML = label + ' &nbsp;&middot;&nbsp; ' + remaining() + ' empty' + (msg ? ' &nbsp;&middot;&nbsp; ' + msg : '') +
+        (notesMode ? ' &nbsp;&middot;&nbsp; Notes on' : '');
+    }
+    msg = '';
+  }
+
+  function rec(ch, k) { ch.push([k, vals[k], notes[k], bad[k]]); }
+
+  function setValue(ch, k, v) {
+    rec(ch, k);
+    vals[k] = v; notes[k] = 0; bad[k] = 0;
+    if (v) {
+      var bit = 1 << (v - 1), j, p;
+      for (j = 0; j < 20; j++) {
+        p = PEERS[k][j];
+        if (notes[p] & bit) { rec(ch, p); notes[p] &= ~bit; }
+      }
+    }
+  }
+
+  function commit(ch) {
+    if (!ch.length) return;
+    hist.push(ch);
+    var k, ok = true;
+    for (k = 0; k < 81; k++) if (vals[k] !== sol[k]) { ok = false; break; }
+    if (ok) { done = true; sel = -1; }
+    save(); render();
+  }
+
+  function input(d) {
+    if (done || busy || sel < 0 || puzzle[sel]) return;
+    var ch = [];
+    if (notesMode) {
+      if (vals[sel]) return;
+      rec(ch, sel);
+      notes[sel] ^= 1 << (d - 1);
+    } else {
+      setValue(ch, sel, vals[sel] === d ? 0 : d);
+    }
+    commit(ch);
+  }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && t.tagName !== 'TD') t = t.parentNode;
+    if (!t || done || busy) return;
+    sel = parseInt(t.getAttribute('data-i'), 10);
+    save(); render();
+  };
+
+  padEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && t.tagName !== 'BUTTON') t = t.parentNode;
+    if (!t || t.disabled) return;
+    input(parseInt(t.getAttribute('data-d'), 10));
+  };
+
+  document.getElementById('btnNotes').onclick = function () { notesMode = !notesMode; render(); };
+
+  document.getElementById('btnErase').onclick = function () {
+    if (done || busy || sel < 0 || puzzle[sel] || (!vals[sel] && !notes[sel])) return;
+    var ch = [];
+    setValue(ch, sel, 0);
+    commit(ch);
+  };
+
+  document.getElementById('btnUndo').onclick = function () {
+    if (done || busy || !hist.length) return;
+    var ch = hist.pop(), k, x;
+    for (k = ch.length - 1; k >= 0; k--) {
+      x = ch[k];
+      vals[x[0]] = x[1]; notes[x[0]] = x[2]; bad[x[0]] = x[3];
+    }
+    sel = ch[0][0];
+    save(); render();
+  };
+
+  document.getElementById('btnCheck').onclick = function () {
+    if (done || busy) return;
+    var k, n = 0;
+    for (k = 0; k < 81; k++) if (!puzzle[k] && vals[k] && vals[k] !== sol[k]) { bad[k] = 1; n++; }
+    msg = n ? n + ' wrong (struck through)' : 'No mistakes so far';
+    save(); render();
+  };
+
+  document.getElementById('btnHint').onclick = function () {
+    if (done || busy) return;
+    var t = -1, cand = [], k, ch = [];
+    if (sel >= 0 && !puzzle[sel] && vals[sel] !== sol[sel]) t = sel;
+    else {
+      for (k = 0; k < 81; k++) if (vals[k] !== sol[k]) cand.push(k);
+      if (!cand.length) return;
+      t = cand[Math.floor(Math.random() * cand.length)];
+    }
+    setValue(ch, t, sol[t]);
+    hints++; sel = t;
+    commit(ch);
+  };
+
+  document.getElementById('btnNew').onclick = newGame;
+  selDiff.onchange = newGame;
+
+  var savedDiff = store('sudoku.diff');
+  if (savedDiff && GIVENS[savedDiff]) selDiff.value = savedDiff;
+  build();
+  if (load()) render(); else newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

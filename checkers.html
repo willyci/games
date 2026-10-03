@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Checkers</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.board { border-collapse: collapse; margin: 0 auto; border: 3px solid #000; }
+table.board td { padding: 0; text-align: center; vertical-align: middle; cursor: pointer; }
+.sq { position: relative; box-sizing: border-box; -webkit-box-sizing: border-box; }
+.sq.lt { background: #fff; }
+.sq.dk { background: #999; }
+.sq.last { border: 3px dashed #000; }
+.sq.sel { background: #fff; border: 5px solid #000; }
+.pc { position: absolute; left: 50%; top: 50%; display: block; box-sizing: border-box; -webkit-box-sizing: border-box;
+  border-radius: 50%; text-align: center; font-weight: bold; font-family: Georgia, "Times New Roman", serif; }
+.pc.w { background: #fff; border: 4px solid #000; color: #000; }
+.pc.b { background: #000; border: 4px solid #000; color: #fff; }
+.dot { position: absolute; left: 50%; top: 50%; display: block; width: 18px; height: 18px; margin: -11px 0 0 -11px;
+  background: #000; border: 2px solid #fff; border-radius: 50%; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>Checkers</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div class="wrap"><table class="board" id="board"></table></div>
+<div class="controls">
+  <select class="btn" id="selMode">
+    <option value="cpu" selected>You vs Computer</option>
+    <option value="two">Two Players</option>
+  </select>
+  <select class="btn" id="selLevel">
+    <option value="1">Easy</option>
+    <option value="2" selected>Medium</option>
+    <option value="3">Hard</option>
+  </select>
+  <button class="btn" id="btnUndo">Undo</button>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  Black (bottom) moves first; against the computer you play Black.
+  Pieces move one square diagonally forward onto dark squares. Jump over an
+  opponent's piece to capture it. Captures are mandatory, and if a jump lands
+  where another jump is possible you must keep jumping with the same piece
+  (tap each landing square in turn). A piece reaching the far row becomes a
+  king (marked K) and may move and capture backwards too.
+  Tap a piece to select it, then tap a dotted square to move.
+  You win when your opponent has no pieces or no legal moves left.
+  The game is drawn after 40 moves each with no capture and no plain piece moved.
+</div>
+<script>
+(function () {
+  var BLACK = 1, WHITE = -1, HUMAN = BLACK, AI = WHITE;
+  var ALL_DIRS = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+  var UP_DIRS = [[-1, -1], [-1, 1]], DOWN_DIRS = [[1, -1], [1, 1]];
+
+  var board = [], turn = BLACK, quiet = 0, history = [], legal = [];
+  var partial = [], cands = [], lastPath = [], over = false, overMsg = '';
+  var thinking = false, timer = null, note = '';
+  var mode = 'cpu', level = 2;
+
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var selMode = document.getElementById('selMode');
+  var selLevel = document.getElementById('selLevel');
+  var btnUndo = document.getElementById('btnUndo');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  function cellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor(Math.min(w - 30, h - 300) / 8);
+    return Math.max(44, Math.min(100, s));
+  }
+
+  // ---------- Rules ----------
+  // Board: 64 cells. 1 = black man, 2 = black king, -1 = white man, -2 = white king, 0 = empty.
+  function initBoard() {
+    var b = [], i, r, c;
+    for (i = 0; i < 64; i++) {
+      r = i >> 3; c = i & 7;
+      b.push(((r + c) & 1) ? (r < 3 ? WHITE : (r > 4 ? BLACK : 0)) : 0);
+    }
+    return b;
+  }
+
+  function dirsOf(v) {
+    if (v === 2 || v === -2) return ALL_DIRS;
+    return v === 1 ? UP_DIRS : DOWN_DIRS;
+  }
+
+  function contains(a, x) { var i; for (i = 0; i < a.length; i++) if (a[i] === x) return true; return false; }
+
+  function jumpsFrom(b, from, v, path, capt, out) {
+    var r = from >> 3, c = from & 7, dirs = dirsOf(v), found = false, k, tr, tc, m, t, np, nc;
+    for (k = 0; k < dirs.length; k++) {
+      tr = r + 2 * dirs[k][0]; tc = c + 2 * dirs[k][1];
+      if (tr < 0 || tr > 7 || tc < 0 || tc > 7) continue;
+      m = (r + dirs[k][0]) * 8 + (c + dirs[k][1]);
+      t = tr * 8 + tc;
+      if (b[m] * v >= 0 || contains(capt, m)) continue;   // must jump an enemy piece, once
+      if (b[t] !== 0 && t !== path[0]) continue;           // landing must be empty (origin is vacated)
+      found = true;
+      np = path.concat([t]); nc = capt.concat([m]);
+      if ((v === 1 && tr === 0) || (v === -1 && tr === 7)) out.push({ p: np, x: nc }); // crowning ends the move
+      else jumpsFrom(b, t, v, np, nc, out);
+    }
+    if (!found && path.length > 1) out.push({ p: path, x: capt });
+  }
+
+  function genMoves(b, side) {
+    var caps = [], quietMoves = [], i, v, r, c, k, dirs, rr, cc;
+    for (i = 0; i < 64; i++) if (b[i] * side > 0) jumpsFrom(b, i, b[i], [i], [], caps);
+    if (caps.length) return caps;
+    for (i = 0; i < 64; i++) {
+      v = b[i];
+      if (v * side <= 0) continue;
+      r = i >> 3; c = i & 7; dirs = dirsOf(v);
+      for (k = 0; k < dirs.length; k++) {
+        rr = r + dirs[k][0]; cc = c + dirs[k][1];
+        if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && b[rr * 8 + cc] === 0) quietMoves.push({ p: [i, rr * 8 + cc], x: [] });
+      }
+    }
+    return quietMoves;
+  }
+
+  function applyMove(b, m) {
+    var nb = b.slice(), from = m.p[0], to = m.p[m.p.length - 1], v = nb[from], k;
+    nb[from] = 0;
+    for (k = 0; k < m.x.length; k++) nb[m.x[k]] = 0;
+    if (v === 1 && to < 8) v = 2;
+    if (v === -1 && to >= 56) v = -2;
+    nb[to] = v;
+    return nb;
+  }
+
+  // ---------- Computer player ----------
+  var deadline = 0, nodes = 0, aborted = false;
+
+  // Score from Black's point of view.
+  function evaluate(b) {
+    var s = 0, nb = 0, nw = 0, i, v, r, c;
+    for (i = 0; i < 64; i++) {
+      v = b[i];
+      if (!v) continue;
+      r = i >> 3; c = i & 7;
+      if (v === 1) { s += 100 + (7 - r) * 3; if (r === 7) s += 6; nb++; }
+      else if (v === -1) { s -= 100 + r * 3; if (r === 0) s -= 6; nw++; }
+      else if (v === 2) { s += 165; nb++; }
+      else { s -= 165; nw++; }
+      if (c >= 2 && c <= 5 && r >= 2 && r <= 5) s += v > 0 ? 4 : -4;
+    }
+    // When ahead, trading pieces is good.
+    if (nb > nw) s += (24 - nb - nw) * 3;
+    else if (nw > nb) s -= (24 - nb - nw) * 3;
+    return s;
+  }
+
+  function negamax(b, side, depth, alpha, beta, ply) {
+    nodes++;
+    if ((nodes & 255) === 0 && new Date().getTime() > deadline) aborted = true;
+    if (aborted) return 0;
+    var moves = genMoves(b, side), best = -1e9, k, val;
+    if (!moves.length) return -100000 + ply;
+    if (depth <= 0 && (moves[0].x.length === 0 || depth < -6)) return side * evaluate(b);
+    for (k = 0; k < moves.length; k++) {
+      val = -negamax(applyMove(b, moves[k]), -side, depth - 1, -beta, -alpha, ply + 1);
+      if (aborted) return 0;
+      if (val > best) best = val;
+      if (best > alpha) alpha = best;
+      if (alpha >= beta) break;
+    }
+    return best;
+  }
+
+  function chooseMove(b, side) {
+    var moves = genMoves(b, side), maxDepth = level === 1 ? 2 : (level === 2 ? 4 : 6);
+    var limit = level === 3 ? 2000 : 1200, noise = level === 1 ? 40 : 0;
+    var best = moves[0], d, k, val, bestVal, bestIdx, order = [], tmp;
+    if (moves.length === 1) return best;
+    for (k = 0; k < moves.length; k++) order.push(k);
+    deadline = new Date().getTime() + limit; nodes = 0; aborted = false;
+    for (d = 1; d <= maxDepth; d++) {
+      bestVal = -1e9; bestIdx = -1;
+      for (k = 0; k < order.length; k++) {
+        val = -negamax(applyMove(b, moves[order[k]]), -side, d - 1, -1e9, 1e9, 1);
+        if (aborted) break;
+        if (noise) val += Math.floor(Math.random() * noise);
+        if (val > bestVal) { bestVal = val; bestIdx = order[k]; }
+      }
+      if (aborted && d > 1) break;
+      if (bestIdx >= 0) {
+        best = moves[bestIdx];
+        for (k = 0; k < order.length; k++) if (order[k] === bestIdx) { tmp = order[0]; order[0] = bestIdx; order[k] = tmp; break; }
+      }
+      if (aborted || bestVal > 50000) break;
+    }
+    return best;
+  }
+
+  // ---------- Game flow ----------
+  function sideName(s) { return s === BLACK ? 'Black' : 'White'; }
+
+  function snapshot() { return { b: board.slice(), turn: turn, quiet: quiet, last: lastPath.slice() }; }
+
+  function startTurn() {
+    legal = genMoves(board, turn);
+    partial = []; cands = [];
+    if (!legal.length) {
+      over = true;
+      var winner = -turn;
+      if (mode === 'cpu') overMsg = winner === HUMAN ? 'You win! Tap New to play again.' : 'Computer wins. Tap New to play again.';
+      else overMsg = sideName(winner) + ' wins! Tap New to play again.';
+    } else if (quiet >= 80) {
+      over = true; overMsg = 'Draw (40 moves each without progress).';
+    }
+    render();
+    if (!over && mode === 'cpu' && turn === AI) computerTurn();
+  }
+
+  function doMove(m) {
+    history.push(snapshot());
+    var v = board[m.p[0]];
+    if (m.x.length || v === 1 || v === -1) quiet = 0; else quiet++;
+    board = applyMove(board, m);
+    lastPath = m.p.slice();
+    turn = -turn;
+    note = '';
+    startTurn();
+  }
+
+  function computerTurn() {
+    thinking = true;
+    render();
+    timer = setTimeout(function () {
+      timer = null;
+      var m = chooseMove(board, turn);
+      thinking = false;
+      doMove(m);
+    }, 50);
+  }
+
+  function newGame() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    mode = selMode.value; level = parseInt(selLevel.value, 10);
+    board = initBoard(); turn = BLACK; quiet = 0; history = []; lastPath = [];
+    over = false; overMsg = ''; thinking = false; note = '';
+    build(); startTurn();
+  }
+
+  function undo() {
+    if (!history.length) return;
+    if (timer) { clearTimeout(timer); timer = null; }
+    thinking = false;
+    var s = history.pop();
+    while (mode === 'cpu' && s.turn !== HUMAN && history.length) s = history.pop();
+    if (mode === 'cpu' && s.turn !== HUMAN) { history.push(s); return; }
+    board = s.b; turn = s.turn; quiet = s.quiet; lastPath = s.last;
+    over = false; overMsg = ''; note = '';
+    startTurn();
+  }
+
+  // ---------- Display ----------
+  function build() {
+    var s = cellSize(), html = '', r, c, i;
+    for (r = 0; r < 8; r++) {
+      html += '<tr>';
+      for (c = 0; c < 8; c++) {
+        i = r * 8 + c;
+        html += '<td data-i="' + i + '"><div style="width:' + s + 'px;height:' + s + 'px"></div></td>';
+      }
+      html += '</tr>';
+    }
+    boardEl.innerHTML = html;
+  }
+
+  function displayBoard() {
+    if (partial.length < 2) return board;
+    var b = board.slice(), v = b[partial[0]], k;
+    b[partial[0]] = 0;
+    for (k = 1; k < partial.length; k++) b[(partial[k - 1] + partial[k]) / 2] = 0;
+    b[partial[partial.length - 1]] = v;
+    return b;
+  }
+
+  function targets() {
+    var t = [], k, n = partial.length;
+    for (k = 0; k < cands.length; k++) if (cands[k].p.length > n && !contains(t, cands[k].p[n])) t.push(cands[k].p[n]);
+    return t;
+  }
+
+  function render() {
+    var s = cellSize(), d = Math.floor(s * 0.74), fs = Math.floor(d * 0.45);
+    var b = displayBoard(), tg = targets(), selSq = partial.length ? partial[partial.length - 1] : -1;
+    var divs = boardEl.getElementsByTagName('div'), i, r, c, v, cls, html;
+    for (i = 0; i < 64; i++) {
+      r = i >> 3; c = i & 7; v = b[i];
+      cls = 'sq ' + (((r + c) & 1) ? 'dk' : 'lt');
+      if (i === selSq) cls += ' sel';
+      else if (!partial.length && contains(lastPath, i)) cls += ' last';
+      html = '';
+      if (v) {
+        html = '<span class="pc ' + (v > 0 ? 'b' : 'w') + '" style="width:' + d + 'px;height:' + d + 'px;margin:' +
+          (-Math.floor(d / 2)) + 'px 0 0 ' + (-Math.floor(d / 2)) + 'px;font-size:' + fs + 'px;line-height:' + (d - 8) + 'px">' +
+          (v === 2 || v === -2 ? 'K' : '') + '</span>';
+      } else if (contains(tg, i)) {
+        html = '<span class="dot"></span>';
+      }
+      divs[i].className = cls;
+      divs[i].innerHTML = html;
+    }
+
+    if (over) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = overMsg;
+    } else {
+      statusEl.className = 'status';
+      var msg;
+      if (thinking) msg = 'Thinking&hellip;';
+      else {
+        msg = mode === 'cpu' ? 'Your move (Black)' : sideName(turn) + ' to move';
+        if (partial.length > 1) msg += ' &middot; keep jumping';
+        else if (legal.length && legal[0].x.length) msg += ' &middot; you must capture';
+        if (note) msg += ' &middot; ' + note;
+      }
+      statusEl.innerHTML = msg;
+    }
+    btnUndo.disabled = !history.length || (mode === 'cpu' && history.length === 1 && history[0].turn !== HUMAN);
+  }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && t.tagName !== 'TD') t = t.parentNode;
+    if (!t || over || thinking || (mode === 'cpu' && turn !== HUMAN)) return;
+    var i = parseInt(t.getAttribute('data-i'), 10), k, done, nc;
+    note = '';
+    if (partial.length) {
+      if (contains(targets(), i)) {
+        partial.push(i);
+        nc = [];
+        for (k = 0; k < cands.length; k++) if (cands[k].p[partial.length - 1] === i) nc.push(cands[k]);
+        cands = nc; done = null;
+        for (k = 0; k < cands.length; k++) if (cands[k].p.length === partial.length) done = cands[k];
+        if (done) doMove(done); else render();
+        return;
+      }
+      if (partial.length > 1) return;            // in the middle of a jump chain
+      if (i === partial[0]) { partial = []; cands = []; render(); return; }
+    }
+    if (board[i] * turn > 0) {
+      nc = [];
+      for (k = 0; k < legal.length; k++) if (legal[k].p[0] === i) nc.push(legal[k]);
+      if (nc.length) { partial = [i]; cands = nc; }
+      else { partial = []; cands = []; note = legal.length && legal[0].x.length ? 'another piece must capture' : 'that piece cannot move'; }
+      render();
+    }
+  };
+
+  btnUndo.onclick = undo;
+  document.getElementById('btnNew').onclick = newGame;
+  selMode.onchange = function () { store('checkers.mode', selMode.value); newGame(); };
+  selLevel.onchange = function () { level = parseInt(selLevel.value, 10); store('checkers.level', selLevel.value); };
+
+  var sm = store('checkers.mode'), sl = store('checkers.level');
+  if (sm === 'cpu' || sm === 'two') selMode.value = sm;
+  if (sl === '1' || sl === '2' || sl === '3') selLevel.value = sl;
+  newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

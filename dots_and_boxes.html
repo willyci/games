@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Dots and Boxes</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.board { border-collapse: collapse; margin: 0 auto; }
+table.board td { padding: 0; margin: 0; border: 0; text-align: center; vertical-align: middle; cursor: pointer; }
+.cw { position: relative; margin: 0; padding: 0; }
+.dot { position: absolute; z-index: 3; width: 14px; height: 14px; background: #000; }
+.ln { position: absolute; z-index: 1; width: 0; height: 0; font-size: 0; line-height: 0; }
+td.b1 { background: #fff; color: #000; font-weight: bold; }
+td.b2 { background: #000; color: #fff; font-weight: bold; }
+.score { font-size: 18px; padding: 6px 8px 0; text-align: center; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>Dots and Boxes</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div class="score" id="score"></div>
+<div class="wrap"><table class="board" id="board"></table></div>
+<div class="controls">
+  <select class="btn" id="selSize">
+    <option value="3">3 &times; 3</option>
+    <option value="4" selected>4 &times; 4</option>
+    <option value="5">5 &times; 5</option>
+    <option value="6">6 &times; 6</option>
+  </select>
+  <select class="btn" id="selMode">
+    <option value="cpu" selected>vs Computer</option>
+    <option value="two">Two Players</option>
+  </select>
+  <select class="btn" id="selLevel">
+    <option value="easy">Easy</option>
+    <option value="hard" selected>Hard</option>
+  </select>
+  <button class="btn" id="btnUndo">Undo</button>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  Take turns joining two neighbouring dots with a line (tap a dotted line, or tap inside a box
+  near the side you want). Draw the fourth side of a box to claim it &mdash; and then you must
+  move again. When every box is claimed, the player with the most boxes wins.
+  Your boxes show your initial; the second player's boxes are filled black.
+  The last line drawn is shown doubled. Tip: avoid drawing the third side of a box!
+</div>
+<script>
+(function () {
+  var N = 4, H = 0, E = 0, B = 0;
+  var drawn = [], owner = [], edgeBoxes = [], boxEdges = [];
+  var turn = 1, score = [0, 0, 0], lastEdge = -1, history = [], over = false, busy = false;
+  var mode = 'cpu', level = 'hard';
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var scoreEl = document.getElementById('score');
+  var selSize = document.getElementById('selSize');
+  var selMode = document.getElementById('selMode');
+  var selLevel = document.getElementById('selLevel');
+  var btnUndo = document.getElementById('btnUndo');
+  var T = 44, S = 60;
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  function sizes() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var avail = Math.min(w - 24, h - 300);
+    T = 44;
+    S = Math.floor((avail - (N + 1) * T) / N);
+    S = Math.max(44, Math.min(110, S));
+  }
+
+  function setup() {
+    var b, r, c, i, e;
+    H = (N + 1) * N; E = H + N * (N + 1); B = N * N;
+    edgeBoxes = []; boxEdges = [];
+    for (e = 0; e < E; e++) edgeBoxes.push([]);
+    for (b = 0; b < B; b++) {
+      r = Math.floor(b / N); c = b % N;
+      // order: top, bottom, left, right
+      boxEdges[b] = [r * N + c, (r + 1) * N + c, H + r * (N + 1) + c, H + r * (N + 1) + c + 1];
+      for (i = 0; i < 4; i++) edgeBoxes[boxEdges[b][i]].push(b);
+    }
+  }
+
+  function names(p) {
+    if (mode === 'cpu') return p === 1 ? 'You' : 'Computer';
+    return 'Player ' + p;
+  }
+  function initial(p) {
+    if (mode === 'cpu') return p === 1 ? 'Y' : 'C';
+    return String(p);
+  }
+
+  // ---------- core rules ----------
+  function sides(d, b) {
+    var be = boxEdges[b];
+    return (d[be[0]] ? 1 : 0) + (d[be[1]] ? 1 : 0) + (d[be[2]] ? 1 : 0) + (d[be[3]] ? 1 : 0);
+  }
+  function missing(d, b) {
+    var be = boxEdges[b], out = [], i;
+    for (i = 0; i < 4; i++) if (!d[be[i]]) out.push(be[i]);
+    return out;
+  }
+  function boxesWith(d, n) {
+    var out = [], b;
+    for (b = 0; b < B; b++) if (sides(d, b) === n) out.push(b);
+    return out;
+  }
+  function undrawn(d) {
+    var out = [], e;
+    for (e = 0; e < E; e++) if (!d[e]) out.push(e);
+    return out;
+  }
+  function safeEdges(d) {
+    var out = [], e, i, ok, eb;
+    for (e = 0; e < E; e++) {
+      if (d[e]) continue;
+      eb = edgeBoxes[e]; ok = true;
+      for (i = 0; i < eb.length; i++) if (sides(d, eb[i]) >= 2) { ok = false; break; }
+      if (ok) out.push(e);
+    }
+    return out;
+  }
+  function completedCount(d) {
+    var n = 0, b;
+    for (b = 0; b < B; b++) if (sides(d, b) === 4) n++;
+    return n;
+  }
+  // Greedy: how many boxes can the player to move grab right now (modifies a copy)
+  function greedyCount(d0) {
+    var d = d0.slice(), start = completedCount(d), b, m, found;
+    do {
+      found = false;
+      for (b = 0; b < B; b++) {
+        if (sides(d, b) === 3) { m = missing(d, b); d[m[0]] = true; found = true; }
+      }
+    } while (found);
+    return completedCount(d) - start;
+  }
+
+  function playMove(e) {
+    var eb = edgeBoxes[e], i, got = 0;
+    drawn[e] = true;
+    for (i = 0; i < eb.length; i++) {
+      if (!owner[eb[i]] && sides(drawn, eb[i]) === 4) { owner[eb[i]] = turn; got++; }
+    }
+    score[turn] += got;
+    lastEdge = e;
+    if (score[1] + score[2] === B) over = true;
+    else if (!got) turn = 3 - turn;
+  }
+
+  // ---------- computer ----------
+  function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+
+  function easyMove() {
+    var caps = boxesWith(drawn, 3);
+    if (caps.length) return missing(drawn, caps[0])[0];
+    return pick(undrawn(drawn));
+  }
+
+  // Count connected regions of unclaimed boxes (excluding skip list), linked through undrawn shared edges.
+  function regionCount(d, skipA, skipB) {
+    var seen = [], b, k = 0, n = 0, stack, x, i, j, e, eb, y;
+    for (b = 0; b < B; b++) seen.push(false);
+    seen[skipA] = true; seen[skipB] = true;
+    for (b = 0; b < B; b++) {
+      if (seen[b] || sides(d, b) === 4) continue;
+      k++; stack = [b]; seen[b] = true;
+      while (stack.length) {
+        x = stack.pop(); n++;
+        for (i = 0; i < 4; i++) {
+          e = boxEdges[x][i];
+          if (d[e]) continue;
+          eb = edgeBoxes[e];
+          for (j = 0; j < eb.length; j++) {
+            y = eb[j];
+            if (!seen[y] && sides(d, y) < 4) { seen[y] = true; stack.push(y); }
+          }
+        }
+      }
+    }
+    return { regions: k, boxes: n };
+  }
+
+  // If A is the second-to-last box of a chain and the chain ends after B, return the
+  // "double-dealing" edge (leave two boxes for the opponent to keep control), else -1.
+  function doubleDealEdge(A) {
+    var m = missing(drawn, A), eAB, eb, Bx = -1, i, mB, eOut = -1, d2, info, V;
+    if (m.length !== 1) return -1;
+    eAB = m[0]; eb = edgeBoxes[eAB];
+    for (i = 0; i < eb.length; i++) if (eb[i] !== A) Bx = eb[i];
+    if (Bx < 0 || sides(drawn, Bx) !== 2) return -1;
+    mB = missing(drawn, Bx);
+    for (i = 0; i < mB.length; i++) if (mB[i] !== eAB) eOut = mB[i];
+    if (eOut < 0) return -1;
+    d2 = drawn.slice(); d2[eOut] = true;
+    eb = edgeBoxes[eOut];
+    for (i = 0; i < eb.length; i++) if (sides(d2, eb[i]) === 4) return -1;
+    if (greedyCount(d2) !== 2) return -1;
+    info = regionCount(d2, A, Bx);
+    if (info.boxes === 0) return -1;
+    // Rough value of keeping control: controller gets everything except 2 per extra region.
+    V = info.boxes - 2 * (info.regions - 1);
+    if (2 * V > info.boxes + 2) return eOut;
+    return -1;
+  }
+
+  function minSacrifice() {
+    var cand = undrawn(drawn), best = [], bestC = 1e9, bestT = -1, i, d2, c, t;
+    for (i = 0; i < cand.length; i++) {
+      d2 = drawn.slice(); d2[cand[i]] = true;
+      c = greedyCount(d2);
+      t = boxesWith(d2, 3).length; // prefer splitting a pair (no double-deal for opponent)
+      if (c < bestC || (c === bestC && t > bestT)) { bestC = c; bestT = t; best = [cand[i]]; }
+      else if (c === bestC && t === bestT) best.push(cand[i]);
+    }
+    return pick(best);
+  }
+
+  function hardMove() {
+    var caps = boxesWith(drawn, 3), safe = safeEdges(drawn), dd;
+    if (caps.length) {
+      if (!safe.length && caps.length === 1) {
+        dd = doubleDealEdge(caps[0]);
+        if (dd >= 0) return dd;
+      }
+      return missing(drawn, caps[0])[0];
+    }
+    if (safe.length) return pick(safe);
+    return minSacrifice();
+  }
+
+  function cpuTurn() {
+    busy = true;
+    statusEl.className = 'status';
+    statusEl.innerHTML = 'Thinking&hellip;';
+    btnUndo.disabled = true;
+    setTimeout(function () {
+      var guard = 0;
+      while (!over && turn === 2 && guard < 500) {
+        playMove(level === 'easy' ? easyMove() : hardMove());
+        guard++;
+      }
+      busy = false;
+      render();
+    }, 50);
+  }
+
+  // ---------- human ----------
+  function snapshot() {
+    history.push({ d: drawn.slice(), o: owner.slice(), t: turn, s: score.slice(), l: lastEdge, ov: over });
+  }
+
+  function humanMove(e) {
+    if (busy || over || drawn[e]) return;
+    if (mode === 'cpu' && turn !== 1) return;
+    snapshot();
+    playMove(e);
+    render();
+    if (mode === 'cpu' && turn === 2 && !over) cpuTurn();
+  }
+
+  function undo() {
+    if (busy || !history.length) return;
+    var h = history.pop();
+    drawn = h.d; owner = h.o; turn = h.t; score = h.s; lastEdge = h.l; over = h.ov;
+    render();
+  }
+
+  function edgeFromBoxTap(b, td, ev) {
+    if (ev.clientX === undefined || !td.getBoundingClientRect) return -1;
+    var rc = td.getBoundingClientRect();
+    var w = td.offsetWidth || S, h = td.offsetHeight || S;
+    var fx = (ev.clientX - rc.left) / w, fy = (ev.clientY - rc.top) / h;
+    var dist = [fy, 1 - fy, fx, 1 - fx], best = -1, bd = 0.34, i;
+    for (i = 0; i < 4; i++) {
+      if (!drawn[boxEdges[b][i]] && dist[i] < bd) { bd = dist[i]; best = boxEdges[b][i]; }
+    }
+    return best;
+  }
+
+  // ---------- drawing ----------
+  function lineStyle(e) {
+    if (e === lastEdge && drawn[e]) return { th: 10, css: '10px double #000' };
+    if (drawn[e]) return { th: 6, css: '6px solid #000' };
+    return { th: 2, css: '2px dotted #888' };
+  }
+
+  function render() {
+    var html = '', R, C, r, c, e, b, ls, half = Math.floor(T / 2), fs = Math.floor(S * 0.5);
+    for (R = 0; R <= 2 * N; R++) {
+      html += '<tr>';
+      for (C = 0; C <= 2 * N; C++) {
+        if (R % 2 === 0 && C % 2 === 0) {
+          html += '<td style="width:' + T + 'px;height:' + T + 'px"><div class="cw" style="width:' + T + 'px;height:' + T + 'px">' +
+            '<div class="dot" style="left:' + (half - 7) + 'px;top:' + (half - 7) + 'px"></div></div></td>';
+        } else if (R % 2 === 0) {
+          r = R / 2; c = (C - 1) / 2; e = r * N + c; ls = lineStyle(e);
+          html += '<td data-e="' + e + '" style="width:' + S + 'px;height:' + T + 'px"><div class="cw" style="width:' + S + 'px;height:' + T + 'px">' +
+            '<div class="ln" style="left:-' + half + 'px;width:' + (S + T) + 'px;top:' + (half - Math.floor(ls.th / 2)) + 'px;border-top:' + ls.css + '"></div></div></td>';
+        } else if (C % 2 === 0) {
+          r = (R - 1) / 2; c = C / 2; e = H + r * (N + 1) + c; ls = lineStyle(e);
+          html += '<td data-e="' + e + '" style="width:' + T + 'px;height:' + S + 'px"><div class="cw" style="width:' + T + 'px;height:' + S + 'px">' +
+            '<div class="ln" style="top:-' + half + 'px;height:' + (S + T) + 'px;left:' + (half - Math.floor(ls.th / 2)) + 'px;border-left:' + ls.css + '"></div></div></td>';
+        } else {
+          b = ((R - 1) / 2) * N + (C - 1) / 2;
+          html += '<td data-b="' + b + '" class="' + (owner[b] ? 'b' + owner[b] : '') + '" style="width:' + S + 'px;height:' + S + 'px;font-size:' + fs + 'px">' +
+            (owner[b] ? initial(owner[b]) : '') + '</td>';
+        }
+      }
+      html += '</tr>';
+    }
+    boardEl.innerHTML = html;
+
+    scoreEl.innerHTML = names(1) + ' (' + initial(1) + '): <b>' + score[1] + '</b> &nbsp;&middot;&nbsp; ' +
+      names(2) + ' (' + initial(2) + '): <b>' + score[2] + '</b>';
+
+    if (over) {
+      statusEl.className = 'status win';
+      var s1 = score[1], s2 = score[2], msg;
+      if (s1 === s2) msg = 'Draw, ' + s1 + ' &ndash; ' + s2 + '!';
+      else if (mode === 'cpu') msg = (s1 > s2 ? 'You win ' : 'Computer wins ') + Math.max(s1, s2) + ' &ndash; ' + Math.min(s1, s2) + '!';
+      else msg = 'Player ' + (s1 > s2 ? 1 : 2) + ' wins ' + Math.max(s1, s2) + ' &ndash; ' + Math.min(s1, s2) + '!';
+      statusEl.innerHTML = msg + ' Tap New to play again.';
+    } else if (!busy) {
+      statusEl.className = 'status';
+      if (mode === 'cpu') statusEl.innerHTML = turn === 1 ? 'Your move' : 'Computer\'s move';
+      else statusEl.innerHTML = 'Player ' + turn + '\'s move';
+    }
+    btnUndo.disabled = busy || history.length === 0;
+    selLevel.style.display = mode === 'cpu' ? '' : 'none';
+  }
+
+  function newGame() {
+    var i;
+    N = parseInt(selSize.value, 10);
+    mode = selMode.value; level = selLevel.value;
+    store('dots.size', String(N)); store('dots.mode', mode); store('dots.level', level);
+    setup(); sizes();
+    drawn = []; owner = [];
+    for (i = 0; i < E; i++) drawn.push(false);
+    for (i = 0; i < B; i++) owner.push(0);
+    turn = 1; score = [0, 0, 0]; lastEdge = -1; history = []; over = false; busy = false;
+    render();
+  }
+
+  boardEl.onclick = function (ev) {
+    ev = ev || window.event;
+    var t = ev.target || ev.srcElement, a, e;
+    while (t && t !== boardEl && t.tagName !== 'TD') t = t.parentNode;
+    if (!t || t === boardEl) return;
+    a = t.getAttribute('data-e');
+    if (a !== null && a !== '') { humanMove(parseInt(a, 10)); return; }
+    a = t.getAttribute('data-b');
+    if (a !== null && a !== '') {
+      e = edgeFromBoxTap(parseInt(a, 10), t, ev);
+      if (e >= 0) humanMove(e);
+    }
+  };
+
+  btnUndo.onclick = undo;
+  document.getElementById('btnNew').onclick = newGame;
+  selSize.onchange = newGame;
+  selMode.onchange = newGame;
+  selLevel.onchange = function () { level = selLevel.value; store('dots.level', level); };
+
+  var sv = store('dots.size'); if (sv) selSize.value = sv;
+  sv = store('dots.mode'); if (sv) selMode.value = sv;
+  sv = store('dots.level'); if (sv) selLevel.value = sv;
+  newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

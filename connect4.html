@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Connect Four</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.board { border-collapse: collapse; margin: 0 auto; }
+table.board td { padding: 0; text-align: center; vertical-align: middle; cursor: pointer; }
+table.board td.cell { border: 1px solid #000; background: #fff; }
+table.board td.cell.wc { background: #888; }
+table.board td.drop { border: 0; font-size: 22px; font-weight: bold; height: 44px; }
+table.board td.drop span { display: block; margin: 0 4px 4px; border: 2px solid #000; line-height: 38px; }
+table.board td.drop.full span { border-style: dashed; color: #999; }
+table.board td.first { border-left: 3px solid #000; }
+table.board td.lastc { border-right: 3px solid #000; }
+table.board tr.top td.cell { border-top: 3px solid #000; }
+table.board tr.bot td.cell { border-bottom: 3px solid #000; }
+.disc, .hole, .mark {
+  display: block; margin: 0 auto;
+  -webkit-border-radius: 50%; border-radius: 50%;
+  -webkit-box-sizing: border-box; box-sizing: border-box;
+}
+.disc.b { background: #000; border: 2px solid #000; }
+.disc.w { background: #fff; border-style: solid; border-color: #000; }
+.hole { border: 2px solid #888; }
+.disc.b .mark { background: #fff; -webkit-border-radius: 0; border-radius: 0; }
+.disc.w .mark { background: #000; -webkit-border-radius: 0; border-radius: 0; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>Connect Four</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div class="wrap"><table class="board" id="board"></table></div>
+<div class="controls">
+  <select class="btn" id="selMode">
+    <option value="h" selected>You first vs Computer</option>
+    <option value="c">Computer first</option>
+    <option value="2">Two Players</option>
+  </select>
+  <select class="btn" id="selLevel">
+    <option value="1">Easy</option>
+    <option value="2" selected>Medium</option>
+    <option value="3">Hard</option>
+  </select>
+  <button class="btn" id="btnUndo">Undo</button>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  Players take turns dropping a disc into one of the seven columns; it falls to the lowest empty
+  space. Tap anywhere in a column (or the &#9660; button above it) to drop your disc.
+  Black (&#9679;) always moves first, White (&#9675;) second. The first player to line up four of
+  their discs in a row &mdash; across, up and down, or diagonally &mdash; wins, and the winning four
+  are shown on gray squares. If the board fills up with no four in a row, the game is a draw.
+  The most recent disc carries a small square mark.
+</div>
+<script>
+(function () {
+  var COLS = 7, ROWS = 6, SIZE = 42, BLACK = 1, WHITE = -1;
+  var ORDER = [3, 2, 4, 1, 5, 0, 6];
+  var WIN = 1000000;
+  // All 69 four-cell windows (cell index = r * 7 + c, r = 0 is the top row).
+  var WINDOWS = [], CELLWIN = [], i, r, c, k;
+  (function () {
+    var dirs = [[0, 1], [1, 0], [1, 1], [1, -1]], d, w, rr, cc, ok;
+    for (i = 0; i < SIZE; i++) CELLWIN.push([]);
+    for (r = 0; r < ROWS; r++) for (c = 0; c < COLS; c++) for (d = 0; d < 4; d++) {
+      w = []; ok = true;
+      for (k = 0; k < 4; k++) {
+        rr = r + dirs[d][0] * k; cc = c + dirs[d][1] * k;
+        if (rr < 0 || rr >= ROWS || cc < 0 || cc >= COLS) { ok = false; break; }
+        w.push(rr * COLS + cc);
+      }
+      if (ok) { for (k = 0; k < 4; k++) CELLWIN[w[k]].push(WINDOWS.length); WINDOWS.push(w); }
+    }
+  })();
+
+  var board, heights, turn, last, history, over, winner, winCells, busy, token = 0, mode, level;
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var selMode = document.getElementById('selMode');
+  var selLevel = document.getElementById('selLevel');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function now() { return new Date().getTime(); }
+
+  function cellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor(Math.min((w - 30) / COLS, (h - 400) / ROWS));
+    return Math.max(44, Math.min(100, s));
+  }
+
+  // ---------- rules ----------
+  function canDrop(hs, col) { return hs[col] < ROWS; }
+  function drop(b, hs, col, p) { var sq = (ROWS - 1 - hs[col]) * COLS + col; b[sq] = p; hs[col]++; return sq; }
+  function lift(b, hs, col) { hs[col]--; b[(ROWS - 1 - hs[col]) * COLS + col] = 0; }
+  // Is the disc on sq part of a four? Returns the winning cells or null.
+  function fourAt(b, sq) {
+    var p = b[sq], list = CELLWIN[sq], j, w;
+    if (!p) return null;
+    for (j = 0; j < list.length; j++) {
+      w = WINDOWS[list[j]];
+      if (b[w[0]] === p && b[w[1]] === p && b[w[2]] === p && b[w[3]] === p) return w;
+    }
+    return null;
+  }
+  function isWinAt(b, sq) {
+    var p = b[sq], list = CELLWIN[sq], j, w;
+    for (j = 0; j < list.length; j++) {
+      w = WINDOWS[list[j]];
+      if (b[w[0]] === p && b[w[1]] === p && b[w[2]] === p && b[w[3]] === p) return true;
+    }
+    return false;
+  }
+  function allWinCells(b) {
+    var out = {}, j, w, any = false;
+    for (j = 0; j < WINDOWS.length; j++) {
+      w = WINDOWS[j];
+      if (b[w[0]] && b[w[0]] === b[w[1]] && b[w[0]] === b[w[2]] && b[w[0]] === b[w[3]]) {
+        out[w[0]] = out[w[1]] = out[w[2]] = out[w[3]] = true; any = true;
+      }
+    }
+    return any ? out : null;
+  }
+  function filled(hs) { var n = 0, j; for (j = 0; j < COLS; j++) n += hs[j]; return n; }
+
+  // ---------- AI ----------
+  var WSCORE = [0, 1, 4, 20]; // value of a window holding 0..3 discs of one colour and no enemy disc
+  function evaluate(b, p) {
+    var s = 0, j, w, a, o, v, x;
+    for (j = 0; j < WINDOWS.length; j++) {
+      w = WINDOWS[j]; a = 0; o = 0;
+      for (x = 0; x < 4; x++) { v = b[w[x]]; if (v === p) a++; else if (v === -p) o++; }
+      if (a && !o) s += WSCORE[a];
+      else if (o && !a) s -= WSCORE[o];
+    }
+    for (j = 0; j < ROWS; j++) { v = b[j * COLS + 3]; if (v === p) s += 3; else if (v === -p) s -= 3; }
+    return s;
+  }
+
+  var deadline = 0, nodes = 0, aborted = false;
+  function negamax(b, hs, p, depth, alpha, beta, ply) {
+    if ((++nodes & 1023) === 0 && deadline && now() > deadline) aborted = true;
+    if (aborted) return 0;
+    var j, col, sq, v, best = -Infinity, any = false;
+    // Immediate win available?
+    for (j = 0; j < COLS; j++) {
+      col = ORDER[j];
+      if (!canDrop(hs, col)) continue;
+      any = true;
+      sq = drop(b, hs, col, p);
+      v = isWinAt(b, sq);
+      lift(b, hs, col);
+      if (v) return WIN - ply;
+    }
+    if (!any) return 0; // draw
+    if (depth <= 0) return evaluate(b, p);
+    for (j = 0; j < COLS; j++) {
+      col = ORDER[j];
+      if (!canDrop(hs, col)) continue;
+      drop(b, hs, col, p);
+      v = -negamax(b, hs, -p, depth - 1, -beta, -alpha, ply + 1);
+      lift(b, hs, col);
+      if (aborted) return 0;
+      if (v > best) best = v;
+      if (best > alpha) alpha = best;
+      if (alpha >= beta) break;
+    }
+    return best;
+  }
+
+  function legalCols(hs) { var out = [], j; for (j = 0; j < COLS; j++) if (canDrop(hs, ORDER[j])) out.push(ORDER[j]); return out; }
+  function shuffle(a) {
+    for (var x = a.length - 1; x > 0; x--) { var y = Math.floor(Math.random() * (x + 1)), t = a[x]; a[x] = a[y]; a[y] = t; }
+    return a;
+  }
+  function winningCol(b, hs, p) {
+    var ms = legalCols(hs), j, sq, w;
+    for (j = 0; j < ms.length; j++) {
+      sq = drop(b, hs, ms[j], p); w = isWinAt(b, sq); lift(b, hs, ms[j]);
+      if (w) return ms[j];
+    }
+    return -1;
+  }
+
+  // Search the root to a fixed depth; returns {col, score} or null if aborted.
+  function rootSearch(b, hs, p, depth, ms) {
+    var j, v, best = -1, bestV = -Infinity, alpha = -Infinity;
+    for (j = 0; j < ms.length; j++) {
+      drop(b, hs, ms[j], p);
+      v = -negamax(b, hs, -p, depth - 1, -Infinity, -alpha, 1);
+      lift(b, hs, ms[j]);
+      if (aborted) return null;
+      if (v > bestV) { bestV = v; best = ms[j]; }
+      if (bestV > alpha) alpha = bestV;
+    }
+    return { col: best, score: bestV };
+  }
+
+  function chooseMove(b, hs, p) {
+    var ms = legalCols(hs), m, j;
+    if (!ms.length) return -1;
+    m = winningCol(b, hs, p); if (m >= 0) return m;
+    m = winningCol(b, hs, -p); if (m >= 0) return m;
+    if (level === 1) {
+      // Prefer moves that do not hand the opponent an immediate win.
+      var safe = [];
+      for (j = 0; j < ms.length; j++) {
+        drop(b, hs, ms[j], p);
+        if (winningCol(b, hs, -p) < 0) safe.push(ms[j]);
+        lift(b, hs, ms[j]);
+      }
+      if (safe.length && Math.random() < 0.7) ms = safe;
+      return ms[Math.floor(Math.random() * ms.length)];
+    }
+    aborted = false; nodes = 0;
+    if (level === 2) {
+      deadline = 0;
+      // random order so equally good moves vary from game to game
+      return rootSearch(b, hs, p, 4, shuffle(ms.slice())).col;
+    }
+    // Hard: iterative deepening up to depth 8 with a time budget.
+    deadline = now() + 1200;
+    var best = ms[0], res, d;
+    for (d = 1; d <= 8; d++) {
+      res = rootSearch(b, hs, p, d, ms);
+      if (!res) break;
+      best = res.col;
+      if (res.score >= WIN - 50) break;           // forced win found
+      // search the previous best first next time
+      for (j = 0; j < ms.length; j++) if (ms[j] === best) { ms.splice(j, 1); ms.unshift(best); break; }
+      if (res.score <= -(WIN - 50)) break;        // lost anyway; keep the move that delays longest
+    }
+    deadline = 0;
+    return best;
+  }
+
+  // ---------- game flow ----------
+  function name(p) { return p === BLACK ? 'Black &#9679;' : 'White &#9675;'; }
+  function isHuman(p) { return mode === '2' || (mode === 'h' && p === BLACK) || (mode === 'c' && p === WHITE); }
+
+  function newGame() {
+    token++;
+    mode = selMode.value;
+    level = parseInt(selLevel.value, 10);
+    store('connect4.mode', mode);
+    board = []; heights = [];
+    for (i = 0; i < SIZE; i++) board.push(0);
+    for (i = 0; i < COLS; i++) heights.push(0);
+    turn = BLACK; last = -1; history = []; over = false; winner = 0; winCells = null; busy = false;
+    build();
+    render();
+    maybeComputer();
+  }
+
+  function play(col) {
+    history.push({ b: board.slice(), h: heights.slice(), t: turn, last: last });
+    var sq = drop(board, heights, col, turn);
+    last = sq;
+    if (fourAt(board, sq)) { over = true; winner = turn; winCells = allWinCells(board); }
+    else if (filled(heights) === SIZE) { over = true; winner = 0; }
+    else turn = -turn;
+    render();
+    maybeComputer();
+  }
+
+  function maybeComputer() {
+    if (over || isHuman(turn)) return;
+    busy = true;
+    render();
+    var my = token;
+    setTimeout(function () {
+      if (my !== token) return;
+      var m = chooseMove(board.slice(), heights.slice(), turn);
+      busy = false;
+      if (m >= 0) play(m); else render();
+    }, 50);
+  }
+
+  function build() {
+    var s = cellSize(), html = '<tr>', rr, cc, cls;
+    for (cc = 0; cc < COLS; cc++) html += '<td class="drop" data-c="' + cc + '" style="width:' + s + 'px"><span>&#9660;</span></td>';
+    html += '</tr>';
+    for (rr = 0; rr < ROWS; rr++) {
+      html += '<tr class="grid' + (rr === 0 ? ' top' : '') + (rr === ROWS - 1 ? ' bot' : '') + '">';
+      for (cc = 0; cc < COLS; cc++) {
+        cls = 'cell' + (cc === 0 ? ' first' : '') + (cc === COLS - 1 ? ' lastc' : '');
+        html += '<td class="' + cls + '" data-c="' + cc + '" data-i="' + (rr * COLS + cc) + '" style="width:' + s + 'px;height:' + s + 'px"></td>';
+      }
+      html += '</tr>';
+    }
+    boardEl.innerHTML = html;
+  }
+
+  function render() {
+    var s = cellSize(), D = Math.floor(s * 0.8), bw = Math.max(4, Math.round(s * 0.12));
+    var hole = Math.max(10, Math.floor(s * 0.22)), mk = Math.max(6, Math.floor(s * 0.16));
+    var tds = boardEl.getElementsByTagName('td'), j, t, q, v, html, cls, inner;
+    for (j = 0; j < tds.length; j++) {
+      t = tds[j];
+      if (t.className.indexOf('drop') >= 0) {
+        q = parseInt(t.getAttribute('data-c'), 10);
+        t.className = 'drop' + ((heights[q] >= ROWS || over) ? ' full' : '');
+        continue;
+      }
+      q = parseInt(t.getAttribute('data-i'), 10);
+      v = board[q];
+      cls = 'cell' + (q % COLS === 0 ? ' first' : '') + (q % COLS === COLS - 1 ? ' lastc' : '');
+      if (winCells && winCells[q]) cls += ' wc';
+      t.className = cls;
+      if (v !== 0) {
+        if (v === BLACK) {
+          inner = D - 4;
+          html = '<span class="disc b" style="width:' + D + 'px;height:' + D + 'px">';
+        } else {
+          inner = D - 2 * bw;
+          html = '<span class="disc w" style="width:' + D + 'px;height:' + D + 'px;border-width:' + bw + 'px">';
+        }
+        if (q === last) html += '<span class="mark" style="width:' + mk + 'px;height:' + mk + 'px;margin-top:' + Math.floor((inner - mk) / 2) + 'px"></span>';
+        html += '</span>';
+      } else {
+        html = '<span class="hole" style="width:' + hole + 'px;height:' + hole + 'px"></span>';
+      }
+      t.innerHTML = html;
+    }
+    var msg;
+    if (over) {
+      statusEl.className = 'status win';
+      if (!winner) msg = 'Draw &mdash; the board is full.';
+      else if (mode === '2') msg = name(winner) + ' wins!';
+      else msg = isHuman(winner) ? 'You win!' : 'Computer wins.';
+      msg += ' Tap New to play again.';
+    } else {
+      statusEl.className = 'status';
+      if (busy) msg = 'Thinking&hellip;';
+      else if (mode === '2') msg = name(turn) + ' to move.';
+      else msg = 'Your move (' + name(turn) + ').';
+    }
+    statusEl.innerHTML = msg;
+    document.getElementById('btnUndo').disabled = !canUndo();
+  }
+
+  function canUndo() {
+    if (!history.length) return false;
+    if (mode === '2') return true;
+    for (var j = 0; j < history.length; j++) if (isHuman(history[j].t)) return true;
+    return false;
+  }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && t.tagName !== 'TD') t = t.parentNode;
+    if (!t || over || busy || !isHuman(turn)) return;
+    var col = parseInt(t.getAttribute('data-c'), 10);
+    if (col >= 0 && canDrop(heights, col)) play(col);
+  };
+
+  document.getElementById('btnUndo').onclick = function () {
+    if (!canUndo()) return;
+    token++; busy = false;
+    var s;
+    do { s = history.pop(); } while (history.length && mode !== '2' && !isHuman(s.t));
+    board = s.b; heights = s.h; turn = s.t; last = s.last; over = false; winner = 0; winCells = null;
+    render();
+    maybeComputer();
+  };
+  document.getElementById('btnNew').onclick = newGame;
+  selMode.onchange = newGame;
+  selLevel.onchange = function () { level = parseInt(selLevel.value, 10); store('connect4.level', selLevel.value); };
+
+  var sm = store('connect4.mode'), sl = store('connect4.level');
+  if (sm) selMode.value = sm;
+  if (sl) selLevel.value = sl;
+  newGame();
+
+  // expose engine for testing in node (harmless in the browser)
+  if (typeof window !== 'undefined' && window.__c4test) window.__c4test({ chooseMove: chooseMove, drop: drop, setLevel: function (l) { level = l; } });
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

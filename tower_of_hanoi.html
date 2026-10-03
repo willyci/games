@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Tower of Hanoi</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.board { border-collapse: collapse; margin: 0 auto; }
+table.board tr.pegs td { border-bottom: 8px solid #000; }
+table.board td { padding: 0; vertical-align: bottom; cursor: pointer; }
+.peg { position: relative; margin: 0 auto; }
+.pole { position: absolute; bottom: 0; background: #000; }
+.disc {
+  position: absolute; background: #aaa; border: 2px solid #000;
+  -webkit-box-sizing: border-box; box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif; font-weight: bold; text-align: center; color: #000;
+}
+.disc.up { background: #000; color: #fff; }
+.label { font-size: 16px; text-align: center; padding: 4px 0 0; }
+td.sel .label { font-weight: bold; text-decoration: underline; }
+.info { font-size: 18px; padding: 8px 0 0; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>Tower of Hanoi</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div class="wrap">
+  <table class="board" id="board"></table>
+  <div class="info" id="info"></div>
+</div>
+<div class="controls">
+  <select class="btn" id="selN">
+    <option value="3">3 discs</option>
+    <option value="4" selected>4 discs</option>
+    <option value="5">5 discs</option>
+    <option value="6">6 discs</option>
+    <option value="7">7 discs</option>
+    <option value="8">8 discs</option>
+  </select>
+  <button class="btn" id="btnUndo">Undo</button>
+  <button class="btn" id="btnReset">Restart</button>
+  <button class="btn" id="btnSolve">Solve</button>
+  <button class="btn" id="btnStep" style="display:none">Next step</button>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  Move the whole tower from the left peg to another peg. Tap a peg to pick up its top disc (it is
+  lifted above the peg and turns black), then tap the peg you want to drop it on. Tap the same peg
+  again to put it back. Only one disc moves at a time, and a larger disc may never be placed on a
+  smaller one. The fewest possible moves for <i>n</i> discs is 2<sup><i>n</i></sup>&nbsp;&minus;&nbsp;1.
+  Stuck? Tap Solve, then Next step (or tap the board) to watch the best solution one move at a time,
+  continuing from wherever you are (it heads for whichever free peg is quicker, normally the right one). Undo leaves solve mode.
+</div>
+<script>
+(function () {
+  var N = 4, pegs, sel, moves, history, done, solving, note;
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var infoEl = document.getElementById('info');
+  var selN = document.getElementById('selN');
+  var btnSolve = document.getElementById('btnSolve');
+  var btnStep = document.getElementById('btnStep');
+  var NAMES = ['left', 'middle', 'right'];
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  function dims() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var colW = Math.floor(Math.min(w - 20, 900) / 3);
+    var dh = Math.floor((h - 420) / (N + 2));
+    dh = Math.max(16, Math.min(40, dh));
+    return { colW: colW, dh: dh, H: dh * (N + 2) + 10 };
+  }
+
+  function top(p) { var s = pegs[p]; return s.length ? s[s.length - 1] : 0; }
+  function minMoves() { return Math.pow(2, N) - 1; }
+
+  function newGame() {
+    N = parseInt(selN.value, 10);
+    store('hanoi.n', String(N));
+    restart();
+  }
+
+  function restart() {
+    var k;
+    pegs = [[], [], []];
+    for (k = N; k >= 1; k--) pegs[0].push(k); // disc size k, 1 = smallest
+    sel = -1; moves = 0; history = []; done = false; note = '';
+    stopSolve();
+    render();
+  }
+
+  function stopSolve() { solving = false; btnSolve.style.display = ''; btnStep.style.display = 'none'; }
+
+  function doMove(from, to) {
+    history.push([from, to]);
+    pegs[to].push(pegs[from].pop());
+    moves++;
+    if (pegs[0].length === 0 && (pegs[1].length === N || pegs[2].length === N)) { done = true; stopSolve(); }
+  }
+
+  // Optimal sequence that gathers every disc on peg "target", starting from any legal position.
+  function solution(target) {
+    var pos = [], out = [], p, j;
+    for (p = 0; p < 3; p++) for (j = 0; j < pegs[p].length; j++) pos[pegs[p][j]] = p;
+    function go(k, t) {
+      if (k < 1) return;
+      if (pos[k] === t) { go(k - 1, t); return; }
+      var o = 3 - pos[k] - t;
+      go(k - 1, o);
+      out.push([pos[k], t]); pos[k] = t;
+      go(k - 1, t);
+    }
+    go(N, target);
+    return out;
+  }
+
+  function solveTarget() {
+    // aim for whichever non-start peg needs fewer moves (normally the right-hand one)
+    var a = solution(2), b = solution(1);
+    return b.length < a.length ? b : a;
+  }
+
+  function step() {
+    if (done) return;
+    sel = -1;
+    var sol = solveTarget();
+    if (!sol.length) return;
+    doMove(sol[0][0], sol[0][1]);
+    note = 'Moved a disc from the ' + NAMES[sol[0][0]] + ' peg to the ' + NAMES[sol[0][1]] + ' peg.';
+    render();
+  }
+
+  function tapPeg(p) {
+    if (done) return;
+    if (solving) { step(); return; }
+    note = '';
+    if (sel < 0) {
+      if (!pegs[p].length) note = 'That peg is empty.';
+      else sel = p;
+    } else if (sel === p) {
+      sel = -1;
+    } else {
+      var t = top(p), d = top(sel);
+      if (t && t < d) note = 'Not allowed: a larger disc cannot go on a smaller one.';
+      else { doMove(sel, p); sel = -1; }
+    }
+    render();
+  }
+
+  function render() {
+    var dm = dims(), html = '<tr class="pegs">', p, j, k, w, minW = Math.floor(dm.colW * 0.25), maxW = dm.colW - 8;
+    var poleW = Math.max(6, Math.floor(dm.colW * 0.04)), fs = Math.max(12, Math.floor(dm.dh * 0.6));
+    for (p = 0; p < 3; p++) {
+      html += '<td data-p="' + p + '"' + (sel === p ? ' class="sel"' : '') + ' style="width:' + dm.colW + 'px">';
+      html += '<div class="peg" style="width:' + dm.colW + 'px;height:' + dm.H + 'px">';
+      html += '<div class="pole" style="left:' + Math.floor((dm.colW - poleW) / 2) + 'px;width:' + poleW + 'px;height:' + (dm.dh * (N + 0.6)) + 'px"></div>';
+      for (j = 0; j < pegs[p].length; j++) {
+        k = pegs[p][j];
+        w = N === 1 ? maxW : Math.floor(minW + (maxW - minW) * (k - 1) / (N - 1));
+        var up = sel === p && j === pegs[p].length - 1;
+        var bottom = up ? dm.H - dm.dh : j * dm.dh;
+        html += '<div class="disc' + (up ? ' up' : '') + '" style="left:' + Math.floor((dm.colW - w) / 2) + 'px;width:' + w + 'px;height:' + dm.dh +
+          'px;bottom:' + bottom + 'px;font-size:' + fs + 'px;line-height:' + (dm.dh - 4) + 'px">' + k + '</div>';
+      }
+      html += '</div></td>';
+    }
+    html += '</tr><tr>';
+    for (p = 0; p < 3; p++) html += '<td data-p="' + p + '"' + (sel === p ? ' class="sel"' : '') + '><div class="label">' + (p === 0 ? 'Start' : (p === 1 ? 'Middle' : 'Right')) + '</div></td>';
+    html += '</tr>';
+    boardEl.innerHTML = html;
+
+    infoEl.innerHTML = 'Moves: ' + moves + ' &nbsp;&middot;&nbsp; Minimum: ' + minMoves();
+    if (done) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'Solved in ' + moves + ' move' + (moves === 1 ? '' : 's') +
+        (moves === minMoves() ? ' &mdash; perfect!' : ' (minimum ' + minMoves() + ').') + ' Tap New to play again.';
+    } else {
+      statusEl.className = 'status';
+      var msg = note;
+      if (solving) {
+        var left = solveTarget().length;
+        msg = (note ? note + '<br>' : '') + 'Solver: ' + left + ' move' + (left === 1 ? '' : 's') + ' to go. Tap Next step.';
+      } else if (!msg) {
+        msg = sel < 0 ? 'Tap a peg to pick up its top disc.' : 'Now tap the peg to drop it on.';
+      }
+      statusEl.innerHTML = msg;
+    }
+    document.getElementById('btnUndo').disabled = history.length === 0 || done;
+    btnSolve.disabled = done;
+  }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && t.tagName !== 'TD') t = t.parentNode;
+    if (!t) return;
+    tapPeg(parseInt(t.getAttribute('data-p'), 10));
+  };
+
+  document.getElementById('btnUndo').onclick = function () {
+    if (!history.length || done) return;
+    var m = history.pop();
+    pegs[m[0]].push(pegs[m[1]].pop());
+    moves--; sel = -1; note = '';
+    stopSolve();
+    render();
+  };
+  btnSolve.onclick = function () {
+    if (done) return;
+    solving = true; sel = -1; note = '';
+    btnSolve.style.display = 'none'; btnStep.style.display = '';
+    render();
+  };
+  btnStep.onclick = step;
+  document.getElementById('btnReset').onclick = restart;
+  document.getElementById('btnNew').onclick = newGame;
+  selN.onchange = newGame;
+
+  var saved = store('hanoi.n');
+  if (saved) selN.value = saved;
+  newGame();
+
+  if (typeof window !== 'undefined' && window.__hanoitest) window.__hanoitest({
+    state: function () { return { pegs: pegs, moves: moves, done: done }; }, tap: tapPeg, step: step,
+    solve: function () { btnSolve.onclick(); }, setN: function (n) { selN.value = String(n); newGame(); }
+  });
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

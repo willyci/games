@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Backgammon</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.board { border-collapse: collapse; margin: 0 auto; border: 3px solid #000; }
+table.board td { padding: 0; text-align: center; vertical-align: middle; cursor: pointer; }
+td.lbl { font-size: 14px; height: 30px; font-weight: bold; }
+td.lbl.on { background: #000; color: #fff; }
+td.barc { border-left: 3px solid #000; border-right: 3px solid #000; background: #eee; }
+td.offc { border-left: 3px solid #000; font-size: 14px; font-weight: bold; }
+td.offc.on { background: #000; color: #fff; }
+td.mid { border-top: 2px solid #000; border-bottom: 2px solid #000; height: 50px; font-size: 16px; }
+.pt {
+  position: relative; margin: 0 auto; overflow: hidden;
+  border: 3px solid #fff;
+  -webkit-box-sizing: border-box; box-sizing: border-box;
+}
+td.barc .pt { border-color: #eee; }
+.pt.sel { border: 3px solid #000; }
+.pt.dest { border: 3px dashed #000; }
+.tri { position: absolute; width: 0; height: 0; left: 0; }
+.ck {
+  position: absolute; text-align: center; font-weight: bold;
+  -webkit-border-radius: 50%; border-radius: 50%;
+  -webkit-box-sizing: border-box; box-sizing: border-box;
+}
+.ck.w { background: #fff; border: 3px solid #000; color: #000; }
+.ck.b { background: #000; border: 2px solid #000; color: #fff; }
+.die {
+  display: inline-block; width: 38px; height: 38px; line-height: 34px; margin: 0 4px;
+  border: 2px solid #000; font-weight: bold; font-size: 22px; vertical-align: middle;
+  -webkit-box-sizing: border-box; box-sizing: border-box;
+}
+.die.used { color: #aaa; border-color: #aaa; text-decoration: line-through; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>Backgammon</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div class="wrap"><table class="board" id="board"></table></div>
+<div class="controls">
+  <button class="btn" id="btnRoll">Roll</button>
+  <button class="btn" id="btnUndo">Undo</button>
+  <select class="btn" id="selMode">
+    <option value="cpu" selected>You vs Computer</option>
+    <option value="2p">Two Players</option>
+  </select>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  You play the white checkers and move them counter-clockwise: along the top from right to left,
+  then along the bottom from left to right, into your home board at the bottom right (points 1&ndash;6).
+  Tap <b>Roll</b>, then tap one of your points (or the bar) and tap a highlighted destination
+  (dashed outline, inverted number). Each die is one move; doubles give four moves. You must use
+  both dice if you can; if only one can be used you must use the larger one if possible.
+  A single checker (a blot) that is landed on is hit and goes to the bar; checkers on the bar
+  must re-enter in the opponent's home board before anything else moves. A point held by two or
+  more opposing checkers is blocked. Once all 15 of your checkers are in your home board you may
+  bear them off by tapping the <b>Off</b> box; a die higher than your farthest checker may bear off
+  from the highest occupied point. Tap <b>Done</b> to end your turn when no moves remain, or
+  <b>Undo</b> to take back moves made this turn. First to bear off all 15 wins (a gammon if the loser
+  has borne off none). The numbers show point numbers from the moving player's side.
+</div>
+<script>
+(function () {
+  // State: st[pl][i], pl 0 = White (bottom, you), 1 = Black (computer / player 2).
+  // Each array is in its owner's own perspective: points 1..24 (1..6 = home), 25 = bar, 0 = borne off.
+  // Own point i corresponds to the opponent's point 25 - i.
+  var st, cur, dice, diceOwner = 0, phase, legal, sel, turnHist, turnMoves, info, mode, token = 0;
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var btnRoll = document.getElementById('btnRoll');
+  var btnUndo = document.getElementById('btnUndo');
+  var selMode = document.getElementById('selMode');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  // ---------- rules ----------
+  function initState() {
+    var a = [], i;
+    for (i = 0; i < 26; i++) a.push(0);
+    a[24] = 2; a[13] = 5; a[8] = 3; a[6] = 5;
+    return [a, a.slice()];
+  }
+  function cloneSt(s) { return [s[0].slice(), s[1].slice()]; }
+  function stateKey(s) { return s[0].join(',') + '/' + s[1].join(','); }
+  function removeOne(arr, v) {
+    var out = arr.slice(), k;
+    for (k = 0; k < out.length; k++) if (out[k] === v) { out.splice(k, 1); break; }
+    return out;
+  }
+  function distinct(arr) {
+    var out = [], seen = {}, k;
+    for (k = 0; k < arr.length; k++) if (!seen[arr[k]]) { seen[arr[k]] = 1; out.push(arr[k]); }
+    return out;
+  }
+
+  // All legal single-checker moves for player pl with one die d.
+  function singleMoves(s, pl, d) {
+    var own = s[pl], opp = s[1 - pl], out = [], f, t, i, allHome, higher;
+    if (own[25] > 0) {
+      t = 25 - d;
+      if (opp[25 - t] < 2) out.push({ f: 25, t: t, d: d, hit: opp[25 - t] === 1 });
+      return out;
+    }
+    allHome = true;
+    for (i = 7; i <= 24; i++) if (own[i] > 0) { allHome = false; break; }
+    for (f = 24; f >= 1; f--) {
+      if (!own[f]) continue;
+      t = f - d;
+      if (t >= 1) {
+        if (opp[25 - t] < 2) out.push({ f: f, t: t, d: d, hit: opp[25 - t] === 1 });
+      } else if (allHome) {
+        if (t === 0) out.push({ f: f, t: 0, d: d, hit: false });
+        else {
+          higher = false;
+          for (i = f + 1; i <= 6; i++) if (own[i] > 0) { higher = true; break; }
+          if (!higher) out.push({ f: f, t: 0, d: d, hit: false });
+        }
+      }
+    }
+    return out;
+  }
+  function applyMove(s, pl, m) {
+    var n = cloneSt(s), own = n[pl], opp = n[1 - pl];
+    own[m.f]--;
+    if (m.t === 0) own[0]++;
+    else {
+      if (opp[25 - m.t] === 1) { opp[25 - m.t] = 0; opp[25]++; }
+      own[m.t]++;
+    }
+    return n;
+  }
+  // Maximum number of dice that can be played from here.
+  function maxDepth(s, pl, ds, memo) {
+    if (!ds.length) return 0;
+    var key = stateKey(s) + '#' + ds.slice().sort().join('');
+    if (memo[key] !== undefined) return memo[key];
+    var best = 0, vals = distinct(ds), k, j, ms, v;
+    for (k = 0; k < vals.length && best < ds.length; k++) {
+      ms = singleMoves(s, pl, vals[k]);
+      for (j = 0; j < ms.length && best < ds.length; j++) {
+        v = 1 + maxDepth(applyMove(s, pl, ms[j]), pl, removeOne(ds, vals[k]), memo);
+        if (v > best) best = v;
+      }
+    }
+    memo[key] = best;
+    return best;
+  }
+  // Legal first moves: those that allow playing the maximum number of dice, and the larger die
+  // when only one of two different dice can be played.
+  function legalMoves(s, pl, ds) {
+    var memo = {}, vals = distinct(ds), cand = [], L = 0, k, j, ms, dep, out = [];
+    for (k = 0; k < vals.length; k++) {
+      ms = singleMoves(s, pl, vals[k]);
+      for (j = 0; j < ms.length; j++) {
+        dep = 1 + maxDepth(applyMove(s, pl, ms[j]), pl, removeOne(ds, vals[k]), memo);
+        cand.push({ m: ms[j], dep: dep });
+        if (dep > L) L = dep;
+      }
+    }
+    for (k = 0; k < cand.length; k++) if (cand[k].dep === L) out.push(cand[k].m);
+    if (L === 1 && ds.length === 2 && ds[0] !== ds[1]) {
+      var big = Math.max(ds[0], ds[1]), bigs = [];
+      for (k = 0; k < out.length; k++) if (out[k].d === big) bigs.push(out[k]);
+      if (bigs.length) out = bigs;
+    }
+    return out;
+  }
+  // Every distinct legal full-turn result for player pl.
+  function allTurns(s, pl, ds) {
+    var res = [], seen = {}, L = 0, k, out = [], fin = {};
+    function dfs(s2, rest, path) {
+      var key = stateKey(s2) + '#' + rest.slice().sort().join('');
+      if (seen[key]) return;
+      seen[key] = 1;
+      var vals = distinct(rest), any = false, a, b, ms;
+      for (a = 0; a < vals.length; a++) {
+        ms = singleMoves(s2, pl, vals[a]);
+        for (b = 0; b < ms.length; b++) {
+          any = true;
+          dfs(applyMove(s2, pl, ms[b]), removeOne(rest, vals[a]), path.concat([ms[b]]));
+        }
+      }
+      if (!any) { res.push({ moves: path, s: s2 }); if (path.length > L) L = path.length; }
+    }
+    dfs(s, ds, []);
+    for (k = 0; k < res.length; k++) if (res[k].moves.length === L) out.push(res[k]);
+    if (L === 1 && ds.length === 2 && ds[0] !== ds[1]) {
+      var big = Math.max(ds[0], ds[1]), bigs = [];
+      for (k = 0; k < out.length; k++) if (out[k].moves[0].d === big) bigs.push(out[k]);
+      if (bigs.length) out = bigs;
+    }
+    res = [];
+    for (k = 0; k < out.length; k++) {
+      var fk = stateKey(out[k].s);
+      if (!fin[fk]) { fin[fk] = 1; res.push(out[k]); }
+    }
+    return res;
+  }
+
+  // ---------- computer heuristic ----------
+  function pip(a) { var p = 0, i; for (i = 1; i <= 25; i++) p += i * a[i]; return p; }
+  var PW = [0, 1, 1.5, 2, 3, 3.5, 3, 3, 2, 1.5, 1, 1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 2.5, 2.5, 1.5, 1, 1];
+  var ROLLS = [];
+  (function () { var a, b; for (a = 1; a <= 6; a++) for (b = a; b <= 6; b++) ROLLS.push([a, b, a === b ? 1 : 2]); })();
+
+  // Chance (0..1) that the opponent y can hit x's blot at x-point i next roll.
+  function hitProb(x, y, i) {
+    var dist = [], any = false, k, q;
+    for (k = 1; k <= 25; k++) {
+      if (!y[k]) continue;
+      q = k === 25 ? 0 : 25 - k;           // shooter position in x's coordinates
+      if (q < i && i - q <= 24) { dist[i - q] = true; any = true; }
+    }
+    if (!any) return 0;
+    function open(c) { return c >= 25 || x[c] < 2; }
+    var hits = 0, r, d1, d2, dd, j, n, ok;
+    for (r = 0; r < ROLLS.length; r++) {
+      d1 = ROLLS[r][0]; d2 = ROLLS[r][1];
+      var hit = false;
+      for (dd = 1; dd <= 24 && !hit; dd++) {
+        if (!dist[dd]) continue;
+        q = i - dd;
+        if (dd === d1 || dd === d2) hit = true;
+        else if (d1 !== d2) {
+          if (dd === d1 + d2 && (open(q + d1) || open(q + d2))) hit = true;
+        } else {
+          for (n = 2; n <= 4 && !hit; n++) {
+            if (dd !== n * d1) continue;
+            ok = true;
+            for (j = 1; j < n; j++) if (!open(q + j * d1)) { ok = false; break; }
+            if (ok) hit = true;
+          }
+        }
+      }
+      if (hit) hits += ROLLS[r][2];
+    }
+    return hits / 36;
+  }
+
+  function evaluate(s, pl) {
+    var x = s[pl], y = s[1 - pl], i, k;
+    if (x[0] === 15) return 100000;
+    var score = pip(y) - pip(x) + 2 * x[0];
+    var maxX = 0, maxY = 0;
+    for (i = 25; i >= 1; i--) if (x[i]) { maxX = i; break; }
+    for (k = 25; k >= 1; k--) if (y[k]) { maxY = k; break; }
+    var contact = maxX + maxY > 25;
+    if (!contact) {
+      for (i = 1; i <= 6; i++) if (x[i] > 3) score -= (x[i] - 3) * 0.5;
+      return score;
+    }
+    var homeX = 0, homeY = 0, run = 0, maxRun = 0;
+    for (i = 1; i <= 6; i++) { if (x[i] >= 2) homeX++; if (y[i] >= 2) homeY++; }
+    for (i = 1; i <= 24; i++) {
+      if (x[i] >= 2) { score += PW[i] * 2; run++; if (run > maxRun) maxRun = run; }
+      else run = 0;
+      if (x[i] > 3) score -= (x[i] - 3);
+    }
+    if (maxRun >= 3) score += (maxRun - 2) * (maxRun - 2) * 3;
+    for (i = 1; i <= 24; i++) {
+      if (x[i] === 1) {
+        var p = hitProb(x, y, i);
+        if (p > 0) score -= p * ((25 - i) + 10) * (1 + 0.2 * homeY);
+      }
+    }
+    score += y[25] * (4 + 2 * homeX);
+    score -= x[25] * (3 + 2 * homeY);
+    return score;
+  }
+
+  // ---------- helpers ----------
+  function rollDie() { return 1 + Math.floor(Math.random() * 6); }
+  function makeDice(a, b) {
+    diceOwner = cur;
+    var out = [], n = a === b ? 4 : 2, k;
+    for (k = 0; k < n; k++) out.push({ v: k % 2 === 0 ? a : b, u: false });
+    return out;
+  }
+  function remaining() { var out = [], k; for (k = 0; k < dice.length; k++) if (!dice[k].u) out.push(dice[k].v); return out; }
+  function useDie(v) { for (var k = 0; k < dice.length; k++) if (!dice[k].u && dice[k].v === v) { dice[k].u = true; return; } }
+  function copyDice() { var out = [], k; for (k = 0; k < dice.length; k++) out.push({ v: dice[k].v, u: dice[k].u }); return out; }
+  function name(pl) {
+    if (mode === 'cpu') return pl === 0 ? 'You' : 'Computer';
+    return pl === 0 ? 'White' : 'Black';
+  }
+  function notation(ms) {
+    var out = [], k, m;
+    for (k = 0; k < ms.length; k++) {
+      m = ms[k];
+      out.push((m.f === 25 ? 'bar' : m.f) + '/' + (m.t === 0 ? 'off' : m.t) + (m.hit ? '*' : ''));
+    }
+    return out.join(' ');
+  }
+  function diceText(ds) { return ds[0] + '-' + ds[1]; }
+
+  // ---------- game flow ----------
+  function newGame() {
+    token++;
+    mode = selMode.value;
+    store('backgammon.mode', mode);
+    st = initState();
+    sel = null; legal = []; turnHist = []; turnMoves = [];
+    var a, b;
+    do { a = rollDie(); b = rollDie(); } while (a === b);
+    cur = a > b ? 0 : 1;
+    dice = makeDice(Math.max(a, b), Math.min(a, b));
+    info = 'Opening roll: ' + name(0) + ' ' + a + ', ' + name(1) + ' ' + b + '. ' + name(cur) + (mode === 'cpu' && cur === 0 ? ' go' : ' goes') + ' first. ';
+    if (mode === 'cpu' && cur === 1) startCpu(true);
+    else enterMove();
+  }
+
+  function enterMove() {
+    legal = legalMoves(st, cur, remaining());
+    sel = null;
+    phase = 'move';
+    if (!legal.length && !turnMoves.length) {
+      info += name(cur) + ' rolled ' + diceText([dice[0].v, dice[1].v]) + ': no legal moves. ';
+      endTurn();
+      return;
+    }
+    if (legal.length && st[cur][25] > 0) sel = 25;
+    render();
+  }
+
+  function endTurn() {
+    turnHist = []; turnMoves = []; sel = null; legal = [];
+    cur = 1 - cur;
+    if (mode === 'cpu' && cur === 1) { startCpu(false); return; }
+    phase = 'roll';
+    render();
+  }
+
+  function startCpu(haveDice) {
+    phase = 'cpu';
+    render();
+    var my = token;
+    setTimeout(function () {
+      if (my !== token) return;
+      if (!haveDice) dice = makeDice(rollDie(), rollDie());
+      var ds = remaining(), turns = allTurns(st, 1, ds), k, best = null, bv = -Infinity, v;
+      var txt = info + 'Computer rolled ' + diceText([dice[0].v, dice[1].v]) + ': ';
+      if (!turns.length || !turns[0].moves.length) txt += 'no legal moves. ';
+      else {
+        for (k = 0; k < turns.length; k++) {
+          v = evaluate(turns[k].s, 1) + Math.random() * 0.01;
+          if (v > bv) { bv = v; best = turns[k]; }
+        }
+        st = best.s;
+        txt += notation(best.moves) + '. ';
+      }
+      for (k = 0; k < dice.length; k++) dice[k].u = true;
+      info = txt;
+      if (st[1][0] === 15) { gameOver(1); return; }
+      cur = 0; phase = 'roll'; sel = null; legal = [];
+      render();
+    }, 50);
+  }
+
+  function gameOver(w) {
+    phase = 'over';
+    var l = 1 - w, kind = '', i, back = st[l][25] > 0;
+    if (st[l][0] === 0) {
+      for (i = 19; i <= 24; i++) if (st[l][i]) back = true;
+      kind = back ? ' a backgammon' : ' a gammon';
+    }
+    if (mode === 'cpu') info = (w === 0 ? 'You win' : 'Computer wins') + kind + '. Tap New to play again.';
+    else info = (w === 0 ? 'White' : 'Black') + ' wins' + kind + '. Tap New to play again.';
+    render();
+  }
+
+  function humanMove(m) {
+    turnHist.push({ st: cloneSt(st), dice: copyDice(), moves: turnMoves.slice() });
+    st = applyMove(st, cur, m);
+    useDie(m.d);
+    turnMoves.push(m);
+    if (st[cur][0] === 15) { gameOver(cur); return; }
+    enterMove();
+  }
+
+  // ---------- rendering ----------
+  function sizes() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var pw = Math.max(30, Math.min(66, Math.floor((w - 30) / 14)));
+    var cd = pw - 8;
+    var byH = Math.floor((h - 420) / 10);
+    if (byH < cd) cd = Math.max(20, byH);
+    return { pw: pw, cd: cd, H: cd * 5 + 6, ow: pw + 8 };
+  }
+  // a = point number in White's (bottom player's) coordinates
+  function ownCoord(a) { return (mode === '2p' && cur === 1) ? 25 - a : a; }
+
+  function checkers(n, cls, z, top, inner) {
+    var html = '', show = Math.min(n, 5), k, left = Math.floor((inner - z.cd) / 2);
+    for (k = 0; k < show; k++) {
+      html += '<div class="ck ' + cls + '" style="width:' + z.cd + 'px;height:' + z.cd + 'px;left:' + left + 'px;' +
+        (top ? 'top:' : 'bottom:') + (k * z.cd) + 'px;line-height:' + (z.cd - 6) + 'px;font-size:' + Math.floor(z.cd * 0.5) + 'px">' +
+        (k === show - 1 && n > 5 ? n : '') + '</div>';
+    }
+    return html;
+  }
+
+  function pointCell(a, top, z, dests) {
+    var inner = z.pw - 6, half = Math.floor(inner / 2), own = ownCoord(a);
+    var dark = a % 2 === 0 ? '#999' : '#ccc';
+    var cls = 'pt';
+    if (phase === 'move' && sel === own && own !== 25) cls += ' sel';
+    else if (dests[own]) cls += ' dest';
+    var html = '<td data-p="' + a + '"><div class="' + cls + '" style="width:' + z.pw + 'px;height:' + z.H + 'px">';
+    html += '<div class="tri" style="' + (top ? 'top:0;border-top:' : 'bottom:0;border-bottom:') + (z.H - 10) + 'px solid ' + dark +
+      ';border-left:' + half + 'px solid transparent;border-right:' + (inner - half) + 'px solid transparent"></div>';
+    if (st[0][a]) html += checkers(st[0][a], 'w', z, top, inner);
+    else if (st[1][25 - a]) html += checkers(st[1][25 - a], 'b', z, top, inner);
+    return html + '</div></td>';
+  }
+
+  function labelCell(a, dests) {
+    var own = ownCoord(a), on = (phase === 'move' && (dests[own] || (sel === own && own !== 25)));
+    return '<td class="lbl' + (on ? ' on' : '') + '" data-p="' + a + '">' + own + '</td>';
+  }
+
+  function render() {
+    var z = sizes(), dests = {}, k, html = '', a;
+    if (phase === 'move' && sel !== null) for (k = 0; k < legal.length; k++) if (legal[k].f === sel) dests[legal[k].t] = true;
+    var topPts = [13, 14, 15, 16, 17, 18, 0, 19, 20, 21, 22, 23, 24];
+    var botPts = [12, 11, 10, 9, 8, 7, 0, 6, 5, 4, 3, 2, 1];
+    // top labels
+    html += '<tr>';
+    for (k = 0; k < 13; k++) html += topPts[k] ? labelCell(topPts[k], dests) : '<td class="lbl barc" data-p="bar">Bar</td>';
+    html += '<td class="lbl offc' + (dests[0] ? ' on' : '') + '" data-p="off" style="width:' + z.ow + 'px">Off</td></tr>';
+    // top points
+    html += '<tr>';
+    for (k = 0; k < 13; k++) {
+      a = topPts[k];
+      if (a) html += pointCell(a, true, z, dests);
+      else html += '<td class="barc" data-p="bar"><div class="pt' + (phase === 'move' && sel === 25 && cur === 1 ? ' sel' : '') + '" style="width:' + z.pw + 'px;height:' + z.H + 'px">' + checkers(st[1][25], 'b', z, false, z.pw - 6) + '</div></td>';
+    }
+    html += '<td class="offc' + (dests[0] ? ' on' : '') + '" data-p="off" style="vertical-align:top;padding-top:8px">' +
+      (mode === 'cpu' ? 'CPU' : 'Black') + '<br><span style="font-size:24px">' + st[1][0] + '</span></td></tr>';
+    // middle: dice
+    html += '<tr><td class="mid" colspan="14">';
+    if (dice && phase !== 'cpu') {
+      html += name(diceOwner) + ': ';
+      for (k = 0; k < dice.length; k++) html += '<span class="die' + (dice[k].u ? ' used' : '') + '">' + dice[k].v + '</span>';
+    } else html += '&nbsp;';
+    html += '</td></tr>';
+    // bottom points
+    html += '<tr>';
+    for (k = 0; k < 13; k++) {
+      a = botPts[k];
+      if (a) html += pointCell(a, false, z, dests);
+      else html += '<td class="barc" data-p="bar"><div class="pt' + (phase === 'move' && sel === 25 && cur === 0 ? ' sel' : '') + '" style="width:' + z.pw + 'px;height:' + z.H + 'px">' + checkers(st[0][25], 'w', z, true, z.pw - 6) + '</div></td>';
+    }
+    html += '<td class="offc' + (dests[0] ? ' on' : '') + '" data-p="off" style="vertical-align:bottom;padding-bottom:8px">' +
+      '<span style="font-size:24px">' + st[0][0] + '</span><br>' + (mode === 'cpu' ? 'You' : 'White') + '</td></tr>';
+    // bottom labels
+    html += '<tr>';
+    for (k = 0; k < 13; k++) html += botPts[k] ? labelCell(botPts[k], dests) : '<td class="lbl barc" data-p="bar">Bar</td>';
+    html += '<td class="lbl offc' + (dests[0] ? ' on' : '') + '" data-p="off">Off</td></tr>';
+    boardEl.innerHTML = html;
+
+    // status + buttons
+    var msg = info || '';
+    statusEl.className = phase === 'over' ? 'status win' : 'status';
+    if (phase === 'cpu') msg += 'Thinking&hellip;';
+    else if (phase === 'roll') msg += (mode === 'cpu' ? 'Your turn' : name(cur) + "'s turn") + ' &mdash; tap Roll.';
+    else if (phase === 'move') {
+      var who2 = mode === 'cpu' ? 'You' : name(cur);
+      if (!legal.length) msg += remaining().length ? 'No legal move for the remaining dice &mdash; tap Done.' : 'Turn complete &mdash; tap Done (or Undo).';
+      else if (sel === null) msg += who2 + ': tap a checker to move.';
+      else msg += who2 + ': tap a highlighted destination.';
+    }
+    statusEl.innerHTML = msg;
+    btnRoll.innerHTML = phase === 'move' ? 'Done' : 'Roll';
+    btnRoll.disabled = !(phase === 'roll' || (phase === 'move' && !legal.length));
+    btnUndo.disabled = !(phase === 'move' && turnHist.length > 0);
+  }
+
+  // ---------- input ----------
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement, p = null, k;
+    while (t && t !== boardEl) {
+      if (t.getAttribute && t.getAttribute('data-p')) { p = t.getAttribute('data-p'); break; }
+      t = t.parentNode;
+    }
+    if (p === null || phase !== 'move' || !legal.length) return;
+    var own = p === 'bar' ? 25 : (p === 'off' ? 0 : ownCoord(parseInt(p, 10)));
+    if (sel !== null) {
+      var best = null;
+      for (k = 0; k < legal.length; k++) {
+        if (legal[k].f === sel && legal[k].t === own && (!best || legal[k].d < best.d)) best = legal[k];
+      }
+      if (best) { if (turnMoves.length === 0) info = ''; humanMove(best); return; }
+    }
+    if (sel === own && own !== 25) { sel = null; render(); return; }
+    for (k = 0; k < legal.length; k++) if (legal[k].f === own) { sel = own; render(); return; }
+    if (sel !== 25) sel = null;
+    render();
+  };
+
+  btnRoll.onclick = function () {
+    if (phase === 'roll') {
+      info = '';
+      dice = makeDice(rollDie(), rollDie());
+      turnHist = []; turnMoves = [];
+      enterMove();
+    } else if (phase === 'move' && !legal.length) {
+      info = '';
+      endTurn();
+    }
+  };
+  btnUndo.onclick = function () {
+    if (phase !== 'move' || !turnHist.length) return;
+    var h = turnHist.pop();
+    st = h.st; dice = h.dice; turnMoves = h.moves;
+    enterMove();
+  };
+  document.getElementById('btnNew').onclick = newGame;
+  selMode.onchange = newGame;
+
+  var sm = store('backgammon.mode');
+  if (sm) selMode.value = sm;
+  newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

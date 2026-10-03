@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Lost PIN</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+.entry { margin: 0 auto 10px; border-collapse: separate; border-spacing: 6px 0; }
+.entry td { width: 52px; height: 60px; border: 3px solid #000; font-size: 34px; font-weight: bold; text-align: center; }
+.entry td.cur { border-width: 5px; }
+.keypad { margin: 0 auto; border-collapse: separate; border-spacing: 6px; }
+.keypad .btn { width: 84px; height: 56px; margin: 0; font-size: 26px; line-height: 52px; }
+.log { margin: 12px auto 0; border-collapse: collapse; font-size: 22px; }
+.log td { padding: 4px 10px; border-bottom: 1px solid #999; text-align: left; }
+.log td.n { color: #555; font-size: 16px; text-align: right; }
+.log td.g { font-weight: bold; letter-spacing: 8px; font-family: "Courier New", monospace; }
+.log tr.last td { border-bottom: 2px solid #000; }
+.dot { display: inline-block; width: 16px; height: 16px; border: 2px solid #000; border-radius: 50%; margin: 0 2px; vertical-align: middle; }
+.dot.hit { background: #000; }
+.legend { font-size: 15px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>Lost PIN</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div class="wrap">
+  <table class="entry"><tr id="entry"></tr></table>
+  <table class="keypad" id="keypad">
+    <tr><td><button class="btn" data-k="1">1</button></td><td><button class="btn" data-k="2">2</button></td><td><button class="btn" data-k="3">3</button></td></tr>
+    <tr><td><button class="btn" data-k="4">4</button></td><td><button class="btn" data-k="5">5</button></td><td><button class="btn" data-k="6">6</button></td></tr>
+    <tr><td><button class="btn" data-k="7">7</button></td><td><button class="btn" data-k="8">8</button></td><td><button class="btn" data-k="9">9</button></td></tr>
+    <tr><td><button class="btn" data-k="del">&#9003;</button></td><td><button class="btn" data-k="0">0</button></td><td><button class="btn" data-k="ok">OK</button></td></tr>
+  </table>
+  <div class="legend"><span class="dot hit"></span> right digit, right place &nbsp; <span class="dot"></span> right digit, wrong place</div>
+  <table class="log" id="log"></table>
+</div>
+<div class="controls">
+  <select class="btn" id="selLen">
+    <option value="3">3 digits</option>
+    <option value="4" selected>4 digits</option>
+    <option value="5">5 digits</option>
+  </select>
+  <select class="btn" id="selRep">
+    <option value="0" selected>No repeats</option>
+    <option value="1">Repeats allowed</option>
+  </select>
+  <button class="btn" id="btnGiveUp">Show PIN</button>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  A secret PIN made of digits 0&ndash;9 is hidden. Enter a guess and tap OK.
+  Each black dot means one digit is correct and in the correct position;
+  each white dot means one digit is in the PIN but in a different position.
+  Find the PIN in as few guesses as possible. With &ldquo;No repeats&rdquo;, every digit in the PIN is different.
+</div>
+<script>
+(function () {
+  var LEN = 4, REP = false, secret = [], input = [], guesses = [], over = false, gaveUp = false;
+  var statusEl = document.getElementById('status');
+  var selLen = document.getElementById('selLen'), selRep = document.getElementById('selRep');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  function newGame() {
+    LEN = parseInt(selLen.value, 10);
+    REP = selRep.value === '1';
+    var pool = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], i, j;
+    secret = [];
+    for (i = 0; i < LEN; i++) {
+      j = Math.floor(Math.random() * pool.length);
+      secret.push(pool[j]);
+      if (!REP) pool.splice(j, 1);
+    }
+    input = []; guesses = []; over = false; gaveUp = false;
+    store('lostpin.len', String(LEN)); store('lostpin.rep', REP ? '1' : '0');
+    render();
+  }
+
+  function score(g) {
+    var hit = 0, near = 0, cs = [], cg = [], i;
+    for (i = 0; i < 10; i++) { cs.push(0); cg.push(0); }
+    for (i = 0; i < LEN; i++) {
+      if (g[i] === secret[i]) hit++;
+      else { cs[secret[i]]++; cg[g[i]]++; }
+    }
+    for (i = 0; i < 10; i++) near += Math.min(cs[i], cg[i]);
+    return { hit: hit, near: near };
+  }
+
+  function dots(r) {
+    var s = '', i;
+    for (i = 0; i < r.hit; i++) s += '<span class="dot hit"></span>';
+    for (i = 0; i < r.near; i++) s += '<span class="dot"></span>';
+    return s || '&ndash;';
+  }
+
+  function render() {
+    var html = '', i;
+    for (i = 0; i < LEN; i++) {
+      var shown = over && gaveUp ? secret[i] : (i < input.length ? input[i] : '');
+      html += '<td' + (!over && i === input.length ? ' class="cur"' : '') + '>' + shown + '</td>';
+    }
+    document.getElementById('entry').innerHTML = html;
+
+    // Newest guess first, so it is always visible without scrolling.
+    html = '';
+    for (i = guesses.length - 1; i >= 0; i--) {
+      html += '<tr' + (i === guesses.length - 1 ? ' class="last"' : '') + '><td class="n">' + (i + 1) + '.</td><td class="g">' +
+        guesses[i].g.join('') + '</td><td>' + dots(guesses[i].r) + '</td></tr>';
+    }
+    document.getElementById('log').innerHTML = html;
+
+    var n = guesses.length;
+    if (over && !gaveUp) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'Unlocked in ' + n + ' guess' + (n === 1 ? '' : 'es') + '! Tap New to play again.';
+    } else if (over) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'The PIN was ' + secret.join('') + '. Tap New to try another.';
+    } else {
+      statusEl.className = 'status';
+      statusEl.innerHTML = 'Guesses: ' + n + ' &nbsp;&middot;&nbsp; Enter ' + LEN + ' digits';
+    }
+    document.getElementById('btnGiveUp').disabled = over;
+  }
+
+  function key(k) {
+    if (over) return;
+    if (k === 'del') { input.pop(); }
+    else if (k === 'ok') {
+      if (input.length < LEN) { statusEl.innerHTML = 'Enter all ' + LEN + ' digits first.'; return; }
+      var r = score(input);
+      guesses.push({ g: input.slice(), r: r });
+      input = [];
+      if (r.hit === LEN) over = true;
+    } else if (input.length < LEN) {
+      input.push(parseInt(k, 10));
+    }
+    render();
+  }
+
+  document.getElementById('keypad').onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && !(t.getAttribute && t.getAttribute('data-k'))) t = t.parentNode;
+    if (t) key(t.getAttribute('data-k'));
+  };
+  document.onkeydown = function (e) {
+    e = e || window.event;
+    var c = e.keyCode;
+    if (c >= 48 && c <= 57) key(String(c - 48));
+    else if (c >= 96 && c <= 105) key(String(c - 96));
+    else if (c === 8) { key('del'); return false; }
+    else if (c === 13) key('ok');
+  };
+  document.getElementById('btnGiveUp').onclick = function () { if (!over) { over = true; gaveUp = true; render(); } };
+  document.getElementById('btnNew').onclick = newGame;
+  selLen.onchange = newGame;
+  selRep.onchange = newGame;
+
+  var l = store('lostpin.len'), rp = store('lostpin.rep');
+  if (l) selLen.value = l;
+  if (rp) selRep.value = rp;
+  newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

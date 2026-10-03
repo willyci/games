@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Hangman</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+.hint { font-size: 18px; text-align: center; padding: 4px 8px; }
+.stats { font-size: 16px; text-align: center; padding: 2px 8px 6px; color: #333; }
+table.word { border-collapse: separate; border-spacing: 10px 0; margin: 6px auto 10px; }
+table.word td { text-align: center; vertical-align: bottom; font-weight: bold; border-bottom: 4px solid #000; padding: 0; }
+table.kb { border-collapse: separate; border-spacing: 4px; margin: 0 auto; }
+table.kb td { padding: 0; }
+.key {
+  display: block; box-sizing: border-box; margin: 0; padding: 0;
+  border: 2px solid #000; background: #fff; color: #000;
+  font-family: Georgia, "Times New Roman", serif; font-weight: bold; text-align: center;
+  border-radius: 0; cursor: pointer; -webkit-appearance: none;
+}
+.key.ok { background: #000; color: #fff; }
+.key.bad { border-style: dashed; color: #777; text-decoration: line-through; }
+.key.done { color: #777; }
+#setup { text-align: center; padding: 10px 8px; }
+#setup input {
+  box-sizing: border-box; height: 48px; font-size: 22px; width: 260px; max-width: 90%;
+  border: 2px solid #000; border-radius: 0; padding: 0 8px; margin: 4px;
+  font-family: Georgia, "Times New Roman", serif; -webkit-appearance: none;
+}
+#setup .lbl { font-size: 18px; margin-top: 6px; }
+#setup .err { font-size: 16px; font-weight: bold; min-height: 22px; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>Hangman</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div id="setup" style="display:none">
+  <div class="lbl">Player 1: type a secret word (letters only, 2&ndash;16), Player 2 look away!</div>
+  <input type="password" id="secret" maxlength="16" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><br>
+  <div class="lbl">Hint for Player 2 (optional)</div>
+  <input type="text" id="secretHint" maxlength="30" autocomplete="off"><br>
+  <div class="err" id="setupErr"></div>
+  <button class="btn" id="btnStart">Start guessing</button>
+</div>
+<div class="wrap" id="game">
+  <svg id="art" width="200" height="220" viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#000" stroke-width="5" fill="none" stroke-linecap="square">
+      <line x1="15" y1="210" x2="150" y2="210"/>
+      <line x1="50" y1="210" x2="50" y2="15"/>
+      <line x1="47" y1="15" x2="143" y2="15"/>
+      <line x1="50" y1="48" x2="83" y2="15"/>
+      <line x1="140" y1="15" x2="140" y2="45"/>
+      <circle id="p0" cx="140" cy="65" r="20"/>
+      <line id="p1" x1="140" y1="85" x2="140" y2="145"/>
+      <line id="p2" x1="140" y1="100" x2="110" y2="128"/>
+      <line id="p3" x1="140" y1="100" x2="170" y2="128"/>
+      <line id="p4" x1="140" y1="145" x2="115" y2="188"/>
+      <line id="p5" x1="140" y1="145" x2="165" y2="188"/>
+    </g>
+  </svg>
+  <div class="hint" id="hint"></div>
+  <table class="word" id="word"></table>
+  <div id="kb"></div>
+  <div class="stats" id="stats"></div>
+</div>
+<div class="controls">
+  <select class="btn" id="selCat"></select>
+  <select class="btn" id="selMode">
+    <option value="one" selected>One Player</option>
+    <option value="two">Two Players</option>
+  </select>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  Guess the hidden word one letter at a time by tapping the keys (or typing on a keyboard).
+  Correct letters are filled in and shown in black; wrong letters are crossed out and add a
+  part to the hangman. Six wrong guesses and the game is lost. In Two Players mode, Player 1
+  types a secret word and Player 2 guesses it.
+</div>
+<script>
+(function () {
+  var WORDS = {
+    'Animals': 'CAT DOG HORSE COW SHEEP GOAT PIG RABBIT MOUSE TIGER LION ELEPHANT GIRAFFE ZEBRA MONKEY GORILLA KANGAROO KOALA PANDA BEAR WOLF FOX DEER MOOSE CAMEL DONKEY OTTER BEAVER SQUIRREL HEDGEHOG DOLPHIN WHALE SHARK OCTOPUS TURTLE FROG LIZARD SNAKE CROCODILE EAGLE OWL PARROT PENGUIN FLAMINGO SPIDER BUTTERFLY RACCOON CHEETAH LEOPARD HIPPO',
+    'Food': 'APPLE BANANA ORANGE GRAPE LEMON CHERRY PEACH PEAR MANGO PINEAPPLE STRAWBERRY WATERMELON BREAD BUTTER CHEESE YOGURT PIZZA PASTA NOODLES RICE SANDWICH BURGER SALAD SOUP COOKIE CAKE PANCAKE WAFFLE MUFFIN CHOCOLATE CARROT POTATO TOMATO ONION GARLIC PEPPER CUCUMBER BROCCOLI SPINACH MUSHROOM HONEY CEREAL OMELET SAUSAGE POPCORN',
+    'Countries': 'CANADA MEXICO BRAZIL ARGENTINA CHILE PERU COLOMBIA FRANCE GERMANY SPAIN ITALY PORTUGAL ENGLAND IRELAND SCOTLAND NORWAY SWEDEN FINLAND DENMARK POLAND GREECE TURKEY EGYPT KENYA NIGERIA MOROCCO ETHIOPIA CHINA JAPAN KOREA INDIA PAKISTAN THAILAND VIETNAM INDONESIA AUSTRALIA ICELAND RUSSIA UKRAINE AUSTRIA BELGIUM NETHERLANDS SWITZERLAND JAMAICA CUBA',
+    'Sports': 'SOCCER FOOTBALL BASEBALL BASKETBALL TENNIS GOLF HOCKEY CRICKET RUGBY BOXING WRESTLING SWIMMING CYCLING RUNNING ROWING SAILING SURFING SKIING SNOWBOARDING SKATING BOWLING ARCHERY FENCING KARATE JUDO BADMINTON VOLLEYBALL HANDBALL SOFTBALL LACROSSE MARATHON TRIATHLON GYMNASTICS DIVING CLIMBING POLO CURLING DARTS BILLIARDS SQUASH KAYAKING HIKING JOGGING RACING SKATEBOARDING',
+    'Household': 'TABLE CHAIR SOFA COUCH BED PILLOW BLANKET LAMP MIRROR CARPET CURTAIN WINDOW DOOR CLOSET DRAWER SHELF BOOKCASE CLOCK TOASTER KETTLE OVEN STOVE FRIDGE FREEZER MICROWAVE DISHWASHER SINK FAUCET BATHTUB SHOWER TOWEL TOOTHBRUSH SOAP BROOM MOP BUCKET VACUUM HAMMER LADDER CANDLE BASKET SPOON FORK KNIFE PLATE',
+    'Nature': 'TREE FOREST RIVER OCEAN LAKE MOUNTAIN VALLEY DESERT ISLAND BEACH CANYON VOLCANO GLACIER WATERFALL MEADOW JUNGLE SWAMP CAVE CLIFF HILL RAINBOW THUNDER LIGHTNING CLOUD STORM SNOW RAIN WIND SUNSHINE MOON STAR PLANET FLOWER BLOSSOM LEAF BRANCH ROOT SEED GRASS MOSS PEBBLE BOULDER SAND TIDE SUNSET',
+    'Jobs': 'DOCTOR NURSE TEACHER FARMER BAKER BUTCHER CHEF WAITER PILOT SAILOR SOLDIER POLICE FIREFIGHTER LAWYER JUDGE DENTIST ENGINEER ARCHITECT ARTIST WRITER SINGER DANCER ACTOR MUSICIAN PAINTER PLUMBER CARPENTER ELECTRICIAN MECHANIC DRIVER CASHIER BANKER LIBRARIAN SCIENTIST JOURNALIST PHOTOGRAPHER GARDENER TAILOR BARBER FISHERMAN ASTRONAUT VETERINARIAN PHARMACIST ACCOUNTANT PROGRAMMER',
+    'Clothing': 'SHIRT JACKET COAT SWEATER DRESS SKIRT TROUSERS JEANS SHORTS SOCKS SHOES BOOTS SANDALS SLIPPERS HAT CAP SCARF GLOVES MITTENS BELT TIE VEST HOODIE PAJAMAS UNIFORM APRON RAINCOAT BLOUSE TUXEDO SNEAKERS'
+  };
+  var CATS = [], LISTS = {}, k;
+  for (k in WORDS) if (WORDS.hasOwnProperty(k)) { CATS.push(k); LISTS[k] = WORDS[k].split(' '); }
+
+  var MAXW = 6;
+  var ROWS = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+  var word = '', category = '', guessed = {}, wrong = 0, over = false, won = false, mode = 'one', inSetup = false;
+
+  var statusEl = document.getElementById('status');
+  var hintEl = document.getElementById('hint');
+  var wordEl = document.getElementById('word');
+  var kbEl = document.getElementById('kb');
+  var statsEl = document.getElementById('stats');
+  var selCat = document.getElementById('selCat');
+  var selMode = document.getElementById('selMode');
+  var setupEl = document.getElementById('setup');
+  var gameEl = document.getElementById('game');
+  var secretEl = document.getElementById('secret');
+  var secretHintEl = document.getElementById('secretHint');
+  var setupErr = document.getElementById('setupErr');
+  var art = document.getElementById('art');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function num(k) { var v = parseInt(store(k), 10); return isNaN(v) ? 0 : v; }
+
+  function vw() { return window.innerWidth || document.documentElement.clientWidth || 600; }
+  function vh() { return window.innerHeight || document.documentElement.clientHeight || 800; }
+
+  // category select
+  (function () {
+    var html = '<option value="Any">Any category</option>', i;
+    for (i = 0; i < CATS.length; i++) html += '<option value="' + CATS[i] + '">' + CATS[i] + '</option>';
+    selCat.innerHTML = html;
+  })();
+
+  function sizeArt() {
+    var h = Math.max(120, Math.min(220, Math.floor(vh() * 0.27)));
+    art.setAttribute('height', String(h));
+    art.setAttribute('width', String(Math.round(h * 200 / 220)));
+  }
+
+  function buildKeyboard() {
+    var w = vw(), kw = Math.max(32, Math.min(60, Math.floor((w - 16) / 10) - 8)), kh = 52, html = '', r, i, ch;
+    var fs = Math.max(18, Math.min(26, Math.floor(kw * 0.45)));
+    for (r = 0; r < ROWS.length; r++) {
+      html += '<table class="kb"><tr>';
+      for (i = 0; i < ROWS[r].length; i++) {
+        ch = ROWS[r].charAt(i);
+        html += '<td><button class="key" id="k' + ch + '" data-k="' + ch + '" style="width:' + kw + 'px;height:' + kh + 'px;font-size:' + fs + 'px">' + ch + '</button></td>';
+      }
+      html += '</tr></table>';
+    }
+    kbEl.innerHTML = html;
+  }
+
+  function isRevealed() {
+    var i;
+    for (i = 0; i < word.length; i++) if (!guessed[word.charAt(i)]) return false;
+    return true;
+  }
+
+  function render() {
+    var i, ch, html = '<tr>', w = vw();
+    var cw = Math.max(18, Math.min(46, Math.floor((w - 24) / Math.max(1, word.length)) - 12));
+    var fs = Math.max(18, Math.min(40, Math.floor(cw * 0.85)));
+    for (i = 0; i < word.length; i++) {
+      ch = word.charAt(i);
+      if (guessed[ch]) html += '<td style="width:' + cw + 'px;height:' + (fs + 10) + 'px;font-size:' + fs + 'px">' + ch + '</td>';
+      else if (over) html += '<td style="width:' + cw + 'px;height:' + (fs + 10) + 'px;font-size:' + fs + 'px;color:#777">' + ch + '</td>';
+      else html += '<td style="width:' + cw + 'px;height:' + (fs + 10) + 'px;font-size:' + fs + 'px">&nbsp;</td>';
+    }
+    wordEl.innerHTML = html + '</tr>';
+
+    for (i = 0; i < MAXW; i++) document.getElementById('p' + i).setAttribute('visibility', i < wrong ? 'visible' : 'hidden');
+
+    for (i = 0; i < 26; i++) {
+      ch = String.fromCharCode(65 + i);
+      var b = document.getElementById('k' + ch);
+      if (!b) continue;
+      if (guessed[ch]) b.className = word.indexOf(ch) >= 0 ? 'key ok' : 'key bad';
+      else b.className = over ? 'key done' : 'key';
+    }
+
+    hintEl.innerHTML = category ? 'Category: <b>' + category + '</b>' : '';
+
+    if (over && won) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'You got it! ' + (wrong === 0 ? 'No mistakes!' : wrong + ' wrong guess' + (wrong === 1 ? '' : 'es') + '.') + ' Tap New for another.';
+    } else if (over) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'Hanged! The word was ' + word + '. Tap New to try again.';
+    } else {
+      statusEl.className = 'status';
+      statusEl.innerHTML = 'Wrong guesses: ' + wrong + ' of ' + MAXW + ' &nbsp;&middot;&nbsp; ' + (MAXW - wrong) + ' left';
+    }
+
+    if (mode === 'one') {
+      statsEl.innerHTML = 'Wins ' + num('hangman.wins') + ' &middot; Losses ' + num('hangman.losses') +
+        ' &middot; Streak ' + num('hangman.streak') + ' &middot; Best ' + num('hangman.best');
+    } else {
+      statsEl.innerHTML = 'Two-player game (not counted in stats)';
+    }
+  }
+
+  function finish(isWin) {
+    over = true; won = isWin;
+    if (mode !== 'one') return;
+    if (isWin) {
+      store('hangman.wins', String(num('hangman.wins') + 1));
+      var s = num('hangman.streak') + 1;
+      store('hangman.streak', String(s));
+      if (s > num('hangman.best')) store('hangman.best', String(s));
+    } else {
+      store('hangman.losses', String(num('hangman.losses') + 1));
+      store('hangman.streak', '0');
+    }
+  }
+
+  function guess(ch) {
+    if (inSetup || over || !word || guessed[ch]) return;
+    guessed[ch] = true;
+    if (word.indexOf(ch) < 0) {
+      wrong++;
+      if (wrong >= MAXW) finish(false);
+    } else if (isRevealed()) finish(true);
+    render();
+  }
+
+  function startWord(w, cat) {
+    word = w; category = cat; guessed = {}; wrong = 0; over = false; won = false; inSetup = false;
+    setupEl.style.display = 'none';
+    gameEl.style.display = '';
+    render();
+  }
+
+  var lastWord = '';
+  function newGame() {
+    mode = selMode.value;
+    store('hangman.mode', mode); store('hangman.cat', selCat.value);
+    selCat.style.display = mode === 'one' ? '' : 'none';
+    if (mode === 'two') {
+      inSetup = true; word = '';
+      gameEl.style.display = 'none';
+      setupEl.style.display = '';
+      secretEl.value = ''; secretHintEl.value = ''; setupErr.innerHTML = '';
+      statusEl.className = 'status';
+      statusEl.innerHTML = 'Two Players: Player 1 enters the secret word';
+      return;
+    }
+    var cat = selCat.value, list, w, tries = 0;
+    if (cat === 'Any') cat = CATS[Math.floor(Math.random() * CATS.length)];
+    list = LISTS[cat];
+    do { w = list[Math.floor(Math.random() * list.length)]; tries++; } while (w === lastWord && tries < 10);
+    lastWord = w;
+    startWord(w, cat);
+  }
+
+  function startTwo() {
+    var w = (secretEl.value || '').replace(/\s+/g, '').toUpperCase();
+    if (!/^[A-Z]{2,16}$/.test(w)) {
+      setupErr.innerHTML = 'Please use 2&ndash;16 letters A&ndash;Z only.';
+      return;
+    }
+    var h = (secretHintEl.value || '').replace(/[<>&"]/g, '');
+    secretEl.value = '';
+    try { secretEl.blur(); secretHintEl.blur(); } catch (e) {}
+    startWord(w, h || 'Set by Player 1');
+  }
+
+  kbEl.onclick = function (ev) {
+    ev = ev || window.event;
+    var t = ev.target || ev.srcElement;
+    while (t && t !== kbEl && !t.getAttribute('data-k')) t = t.parentNode;
+    if (!t || t === kbEl) return;
+    guess(t.getAttribute('data-k'));
+  };
+
+  document.onkeydown = function (ev) {
+    ev = ev || window.event;
+    if (inSetup) {
+      if ((ev.keyCode || ev.which) === 13) startTwo();
+      return;
+    }
+    if (ev.ctrlKey || ev.altKey || ev.metaKey) return;
+    var code = ev.keyCode || ev.which;
+    if (code >= 65 && code <= 90) {
+      guess(String.fromCharCode(code));
+      if (ev.preventDefault) ev.preventDefault();
+      return false;
+    }
+  };
+
+  // only letters in the secret field
+  secretEl.onkeyup = function () {
+    var v = secretEl.value, c = v.replace(/[^A-Za-z]/g, '');
+    if (c !== v) secretEl.value = c;
+  };
+
+  document.getElementById('btnStart').onclick = startTwo;
+  document.getElementById('btnNew').onclick = newGame;
+  selCat.onchange = newGame;
+  selMode.onchange = newGame;
+
+  var sv = store('hangman.cat'); if (sv) selCat.value = sv;
+  if (!selCat.value) selCat.value = 'Any';
+  sv = store('hangman.mode'); if (sv) selMode.value = sv;
+  sizeArt();
+  buildKeyboard();
+  newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

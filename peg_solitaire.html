@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Peg Solitaire</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+#board { display: inline-block; border: 3px solid #000; padding: 6px; }
+.row { text-align: center; white-space: nowrap; font-size: 0; line-height: 0; }
+.cell { display: inline-block; vertical-align: top; text-align: center; cursor: pointer; position: relative; }
+.cell.void { cursor: default; }
+.cell.sel { background: #000; }
+.cell span { display: block; margin: 0 auto; border-radius: 50%; box-sizing: border-box; }
+span.peg { background: #000; border: 2px solid #000; }
+.sel span.peg { background: #fff; border: 2px solid #fff; }
+span.hole { background: #fff; border: 2px solid #000; }
+span.tgt { background: #fff; border: 3px solid #000; }
+span.tgt b { display: block; margin: 0 auto; border-radius: 50%; background: #000; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>Peg Solitaire</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div class="wrap"><div id="board"></div></div>
+<div class="controls">
+  <select class="btn" id="selBoard">
+    <option value="english" selected>English (33)</option>
+    <option value="french">European (37)</option>
+    <option value="triangle">Triangle (15)</option>
+  </select>
+  <button class="btn" id="btnUndo">Undo</button>
+  <button class="btn" id="btnReset">Restart</button>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  Tap a peg to select it (it turns white on black). Holes it can jump into show a dot &mdash;
+  tap one to jump. A peg jumps over a neighbouring peg into an empty hole straight beyond it,
+  and the jumped peg is removed. On the square boards jumps go up, down, left or right;
+  on the triangle they also go along the diagonals. Leave as few pegs as possible &mdash;
+  ideally just one (on the English board, in the centre).
+</div>
+<script>
+(function () {
+  // Each board: rows of cells; cell = {r, c} in a coordinate system where
+  // jumps are (from) + 2*d with d in dirs.
+  var BOARDS = {
+    english: { cols: 7, tri: false, start: [3, 3] },
+    french: { cols: 7, tri: false, start: [2, 3] },
+    triangle: { cols: 5, tri: true, start: [0, 0] }
+  };
+  var SQ_DIRS = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+  var TRI_DIRS = [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [-1, -1]];
+
+  var kind = 'english', cfg, cells = [], at = {}, pegs = [], startIdx = 0;
+  var sel = -1, history = [], done = false, note = '';
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var selBoard = document.getElementById('selBoard');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  function cellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor(Math.min(w - 40, h - 330) / cfg.cols);
+    return Math.max(44, Math.min(100, s));
+  }
+
+  function inBoard(r, c) {
+    if (kind === 'triangle') return r >= 0 && r < 5 && c >= 0 && c <= r;
+    if (r < 0 || r > 6 || c < 0 || c > 6) return false;
+    if ((r >= 2 && r <= 4) || (c >= 2 && c <= 4)) return true;
+    return kind === 'french' && (r === 1 || r === 5) && (c === 1 || c === 5);
+  }
+
+  function setup() {
+    var r, c, rows = kind === 'triangle' ? 5 : 7;
+    cfg = BOARDS[kind];
+    cells = []; at = {};
+    for (r = 0; r < rows; r++) {
+      for (c = 0; c < (kind === 'triangle' ? r + 1 : 7); c++) {
+        if (inBoard(r, c)) { at[r + ',' + c] = cells.length; cells.push({ r: r, c: c }); }
+      }
+    }
+    startIdx = at[cfg.start[0] + ',' + cfg.start[1]];
+  }
+
+  function idx(r, c) { var i = at[r + ',' + c]; return i === undefined ? -1 : i; }
+
+  // Legal jumps from cell i: list of {over, to}.
+  function jumpsFrom(i) {
+    var res = [], d = cfg.tri ? TRI_DIRS : SQ_DIRS, k, o, t, p = cells[i];
+    if (!pegs[i]) return res;
+    for (k = 0; k < d.length; k++) {
+      o = idx(p.r + d[k][0], p.c + d[k][1]);
+      t = idx(p.r + 2 * d[k][0], p.c + 2 * d[k][1]);
+      if (o >= 0 && t >= 0 && pegs[o] && !pegs[t]) res.push({ over: o, to: t });
+    }
+    return res;
+  }
+
+  function anyMoves() { var i; for (i = 0; i < cells.length; i++) if (jumpsFrom(i).length) return true; return false; }
+  function pegCount() { var n = 0, i; for (i = 0; i < pegs.length; i++) if (pegs[i]) n++; return n; }
+
+  function newGame() {
+    kind = selBoard.value;
+    if (!BOARDS[kind]) kind = 'english';
+    store('pegsol.board', kind);
+    setup();
+    build();
+    restart();
+  }
+
+  function restart() {
+    var i;
+    pegs = [];
+    for (i = 0; i < cells.length; i++) pegs.push(i !== startIdx);
+    sel = -1; history = []; done = false; note = '';
+    render();
+  }
+
+  function build() {
+    var s = cellSize(), html = '', r, c, i, rows = kind === 'triangle' ? 5 : 7;
+    for (r = 0; r < rows; r++) {
+      html += '<div class="row">';
+      for (c = 0; c < (kind === 'triangle' ? r + 1 : 7); c++) {
+        i = idx(r, c);
+        html += '<div class="cell' + (i < 0 ? ' void' : '') + '"' + (i < 0 ? '' : ' data-i="' + i + '"') +
+          ' style="width:' + s + 'px;height:' + s + 'px"></div>';
+      }
+      html += '</div>';
+    }
+    boardEl.innerHTML = html;
+  }
+
+  function circle(cls, d, s, inner) {
+    var top = Math.floor((s - d) / 2);
+    return '<span class="' + cls + '" style="width:' + d + 'px;height:' + d + 'px;position:relative;top:' + top + 'px">' + (inner || '') + '</span>';
+  }
+
+  function rating(n, last) {
+    if (n === 1 && last === startIdx) return '1 peg in the ' + (kind === 'english' ? 'centre' : 'starting hole') + ' &mdash; Perfect!';
+    if (n === 1) return '1 peg &mdash; Genius!';
+    if (n === 2) return '2 pegs &mdash; Excellent!';
+    if (n === 3) return '3 pegs &mdash; Very good!';
+    if (n === 4) return '4 pegs &mdash; Good.';
+    if (n === 5) return '5 pegs &mdash; Not bad.';
+    return n + ' pegs &mdash; Keep practising!';
+  }
+
+  function render() {
+    var s = cellSize(), divs = boardEl.childNodes, targets = {}, j, r, k, el, i, html;
+    if (sel >= 0) { j = jumpsFrom(sel); for (k = 0; k < j.length; k++) targets[j[k].to] = true; }
+    for (r = 0; r < divs.length; r++) {
+      for (k = 0; k < divs[r].childNodes.length; k++) {
+        el = divs[r].childNodes[k];
+        if (!el.getAttribute('data-i')) continue;
+        i = parseInt(el.getAttribute('data-i'), 10);
+        if (pegs[i]) html = circle('peg', Math.floor(s * 0.68), s);
+        else if (targets[i]) {
+          var d = Math.floor(s * 0.5), b = Math.floor(s * 0.18);
+          html = circle('tgt', d, s, '<b style="width:' + b + 'px;height:' + b + 'px;position:relative;top:' + Math.floor((d - 6 - b) / 2) + 'px"></b>');
+        } else html = circle('hole', Math.floor(s * 0.3), s);
+        el.className = 'cell' + (i === sel ? ' sel' : '');
+        el.innerHTML = html;
+      }
+    }
+    var n = pegCount();
+    if (done) {
+      var last = -1;
+      for (i = 0; i < pegs.length; i++) if (pegs[i]) last = i;
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'No moves left: ' + rating(n, last);
+    } else {
+      statusEl.className = 'status';
+      statusEl.innerHTML = 'Pegs left: ' + n + ' &nbsp;&middot;&nbsp; Moves: ' + history.length + (note ? '<br>' + note : '');
+    }
+    document.getElementById('btnUndo').disabled = history.length === 0;
+  }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && t !== boardEl && !(t.getAttribute && t.getAttribute('data-i'))) t = t.parentNode;
+    if (!t || t === boardEl || done) return;
+    var i = parseInt(t.getAttribute('data-i'), 10), j, k;
+    note = '';
+    if (pegs[i]) {
+      if (sel === i) sel = -1;
+      else {
+        sel = i;
+        if (!jumpsFrom(i).length) note = 'That peg cannot jump.';
+      }
+    } else if (sel >= 0) {
+      j = jumpsFrom(sel);
+      for (k = 0; k < j.length; k++) if (j[k].to === i) break;
+      if (k < j.length) {
+        pegs[sel] = false; pegs[j[k].over] = false; pegs[i] = true;
+        history.push({ from: sel, over: j[k].over, to: i });
+        sel = -1;
+        if (!anyMoves()) done = true;
+      } else sel = -1;
+    }
+    render();
+  };
+
+  document.getElementById('btnUndo').onclick = function () {
+    if (!history.length) return;
+    var m = history.pop();
+    pegs[m.from] = true; pegs[m.over] = true; pegs[m.to] = false;
+    sel = -1; done = false; note = '';
+    render();
+  };
+  document.getElementById('btnReset').onclick = restart;
+  document.getElementById('btnNew').onclick = newGame;
+  selBoard.onchange = newGame;
+
+  var saved = store('pegsol.board');
+  if (saved && BOARDS[saved]) selBoard.value = saved;
+  newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

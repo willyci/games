@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Chinese Checkers</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+.star { margin: 0 auto; }
+.row { text-align: center; white-space: nowrap; font-size: 0; line-height: 0; }
+.hole { display: inline-block; position: relative; vertical-align: top; cursor: pointer; }
+.hole span, .hole b { position: absolute; left: 50%; top: 50%; display: block; box-sizing: border-box; -webkit-box-sizing: border-box; }
+.e { border: 2px solid #000; border-radius: 50%; background: #fff; }
+.e.zone { background: #bbb; }
+.p1 { background: #000; border: 4px solid #000; border-radius: 50%; z-index: 2; }
+.p2 { background: #fff; border: 5px solid #000; border-radius: 50%; z-index: 2; }
+.p1.sel { background: #fff; }
+.p2.sel { background: #000; }
+.box { z-index: 1; }
+.box.sel { border: 4px solid #000; }
+.box.last { border: 2px dashed #000; }
+.dot { background: #000; border: 2px solid #fff; border-radius: 50%; z-index: 3; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>Chinese Checkers</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div class="wrap"><div class="star" id="board"></div></div>
+<div class="controls">
+  <select class="btn" id="selMode">
+    <option value="cpu" selected>You vs Computer</option>
+    <option value="two">Two Players</option>
+  </select>
+  <select class="btn" id="selLevel">
+    <option value="1">Easy</option>
+    <option value="2" selected>Normal</option>
+  </select>
+  <button class="btn" id="btnUndo">Undo</button>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  Black starts in the bottom point of the star and moves first; against the computer you play Black.
+  Race all ten of your pieces into the opposite (top) point before your opponent fills yours.
+  On your turn move one piece either one step to a neighbouring empty hole, or by hopping:
+  jump over any single adjacent piece (yours or your opponent's) into the empty hole directly beyond it.
+  Hops can be chained as long as you like in one turn. Tap a piece, then tap any dotted hole &mdash;
+  the hop route is worked out for you. Pieces are never captured.
+  You win when the target point is completely full and at least one of the pieces in it is yours
+  (so a piece left behind cannot block you).
+</div>
+<script>
+(function () {
+  var DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+  var ROWS = 17;
+  var cells = [], index = {}, nb = [], rowsOf = [], zoneTop = [], zoneBot = [];
+  var TIP = [0, 0, 0];         // TIP[p] = cell index of player p's target tip
+  var HOME = [null, null, null], TARGET = [null, null, null];
+
+  var board = [], turn = 1, history = [], sel = -1, dests = [];
+  var lastFrom = -1, lastTo = -1, passes = 0, plies = 0;
+  var over = false, overMsg = '', thinking = false, timer = null, note = '';
+  var mode = 'cpu', level = 2, HUMAN = 1, AI = 2, S = 44, RH = 38, els = [];
+
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var selMode = document.getElementById('selMode');
+  var selLevel = document.getElementById('selLevel');
+  var btnUndo = document.getElementById('btnUndo');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  // ---------- Geometry (axial hex coordinates q, r; s = -q - r) ----------
+  // The star is the union of two big triangles: {q,r,s >= -4} and {q,r,s <= 4}.
+  function inStar(q, r) {
+    var s = -q - r;
+    return (q >= -4 && r >= -4 && s >= -4) || (q <= 4 && r <= 4 && s <= 4);
+  }
+
+  function setup() {
+    var r, q, i, k, j, row;
+    for (r = -8; r <= 8; r++) {
+      row = [];
+      for (q = -8; q <= 8; q++) {
+        if (!inStar(q, r)) continue;
+        index[q + ',' + r] = cells.length;
+        row.push(cells.length);
+        cells.push({ q: q, r: r });
+      }
+      rowsOf.push(row);
+    }
+    for (i = 0; i < cells.length; i++) {
+      nb.push([]);
+      for (k = 0; k < 6; k++) {
+        j = index[(cells[i].q + DIRS[k][0]) + ',' + (cells[i].r + DIRS[k][1])];
+        nb[i].push(j === undefined ? -1 : j);
+      }
+      if (cells[i].r <= -5) zoneTop.push(i);
+      if (cells[i].r >= 5) zoneBot.push(i);
+    }
+    HOME[1] = zoneBot; TARGET[1] = zoneTop; TIP[1] = index['4,-8'];
+    HOME[2] = zoneTop; TARGET[2] = zoneBot; TIP[2] = index['-4,8'];
+  }
+
+  function hexDist(a, b) {
+    var dq = cells[a].q - cells[b].q, dr = cells[a].r - cells[b].r, ds = -dq - dr;
+    return ((dq < 0 ? -dq : dq) + (dr < 0 ? -dr : dr) + (ds < 0 ? -ds : ds)) / 2;
+  }
+  var DIST = [null, [], []];
+
+  // ---------- Rules ----------
+  function initBoard() {
+    var b = [], i;
+    for (i = 0; i < cells.length; i++) b.push(0);
+    for (i = 0; i < 10; i++) { b[HOME[1][i]] = 1; b[HOME[2][i]] = 2; }
+    return b;
+  }
+
+  // All destinations for the piece at i: [{to, path, hops}]
+  function destsFrom(b, i) {
+    var out = [], seen = {}, k, n, m, queue, cur, path;
+    seen[i] = true;
+    for (k = 0; k < 6; k++) {
+      n = nb[i][k];
+      if (n >= 0 && b[n] === 0) { out.push({ to: n, path: [i, n], hops: 0 }); seen[n] = true; }
+    }
+    queue = [[i]];
+    while (queue.length) {
+      path = queue.shift(); cur = path[path.length - 1];
+      for (k = 0; k < 6; k++) {
+        m = nb[cur][k];
+        if (m < 0 || b[m] === 0) continue;
+        n = nb[m][k];
+        if (n < 0 || b[n] !== 0 || seen[n]) continue;
+        seen[n] = true;
+        out.push({ to: n, path: path.concat([n]), hops: path.length });
+        queue.push(path.concat([n]));
+      }
+    }
+    return out;
+  }
+
+  function allMoves(b, p) {
+    var out = [], i, d, k;
+    for (i = 0; i < b.length; i++) {
+      if (b[i] !== p) continue;
+      d = destsFrom(b, i);
+      for (k = 0; k < d.length; k++) out.push({ from: i, to: d[k].to, path: d[k].path, hops: d[k].hops });
+    }
+    return out;
+  }
+
+  function hasWon(b, p) {
+    var t = TARGET[p], k, mine = 0;
+    for (k = 0; k < t.length; k++) {
+      if (b[t[k]] === 0) return false;
+      if (b[t[k]] === p) mine++;
+    }
+    return mine > 0;
+  }
+
+  // ---------- Computer player ----------
+  // Cost of a piece at distance d from the target tip: squares make stragglers expensive.
+  function pieceCost(d) { return d + 0.05 * d * d; }
+
+  function bestGain(b, p) {
+    var ms = allMoves(b, p), k, g, best = -1e9, D = DIST[p];
+    for (k = 0; k < ms.length; k++) {
+      g = pieceCost(D[ms[k].from]) - pieceCost(D[ms[k].to]);
+      if (g > best) best = g;
+    }
+    return ms.length ? best : 0;
+  }
+
+  function chooseMove(b, p) {
+    var ms = allMoves(b, p), D = DIST[p], k, m, g, g2, sc, best = null, bestSc = -1e9, nbd;
+    var deadline = new Date().getTime() + 1200, inTarget = {}, t;
+    for (k = 0; k < TARGET[p].length; k++) inTarget[TARGET[p][k]] = true;
+    for (k = 0; k < ms.length; k++) {
+      m = ms[k];
+      g = pieceCost(D[m.from]) - pieceCost(D[m.to]);
+      sc = g + 0.15 * m.hops;
+      if (inTarget[m.from] && !inTarget[m.to]) sc -= 3;              // don't leave the target zone
+      if (m.from === aiLast[p].to && m.to === aiLast[p].from) sc -= 2; // avoid shuffling back and forth
+      if (level >= 2 && new Date().getTime() < deadline) {
+        nbd = b.slice(); nbd[m.from] = 0; nbd[m.to] = p;
+        if (hasWon(nbd, p)) sc += 1000;
+        else {
+          g2 = bestGain(nbd, p);
+          sc += 0.5 * g2;
+        }
+      } else if (level < 2) {
+        sc += Math.random() * 2.5;
+      }
+      sc += Math.random() * 0.01;
+      if (sc > bestSc) { bestSc = sc; best = m; }
+    }
+    return best;
+  }
+  var aiLast = [null, { from: -1, to: -1 }, { from: -1, to: -1 }];
+
+  // ---------- Game flow ----------
+  function name(p) {
+    if (mode === 'cpu') return p === HUMAN ? 'You' : 'Computer';
+    return p === 1 ? 'Black' : 'White';
+  }
+
+  function snapshot() {
+    return { b: board.slice(), turn: turn, lf: lastFrom, lt: lastTo, passes: passes, plies: plies,
+      a1: { from: aiLast[1].from, to: aiLast[1].to }, a2: { from: aiLast[2].from, to: aiLast[2].to } };
+  }
+
+  function startTurn() {
+    sel = -1; dests = [];
+    if (!over && !allMoves(board, turn).length) {
+      passes++;
+      if (passes >= 2) { over = true; overMsg = 'No moves left for either side &mdash; draw.'; }
+      else { note = name(turn) + ' cannot move and passes'; turn = 3 - turn; }
+    } else passes = 0;
+    if (!over && plies >= 600) { over = true; overMsg = 'Draw (move limit reached).'; }
+    render();
+    if (!over && mode === 'cpu' && turn === AI) computerTurn();
+  }
+
+  function doMove(from, to) {
+    history.push(snapshot());
+    var p = board[from];
+    board[from] = 0; board[to] = p;
+    lastFrom = from; lastTo = to; plies++;
+    aiLast[p] = { from: from, to: to };
+    note = '';
+    if (hasWon(board, p)) {
+      over = true;
+      if (mode === 'cpu') overMsg = (p === HUMAN ? 'You win!' : 'Computer wins.') + ' Tap New to play again.';
+      else overMsg = (p === 1 ? 'Black' : 'White') + ' wins! Tap New to play again.';
+      sel = -1; dests = [];
+      render();
+      return;
+    }
+    turn = 3 - p;
+    startTurn();
+  }
+
+  function computerTurn() {
+    thinking = true;
+    render();
+    timer = setTimeout(function () {
+      timer = null;
+      var m = chooseMove(board, turn);
+      thinking = false;
+      if (m) doMove(m.from, m.to);
+    }, 50);
+  }
+
+  function newGame() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    mode = selMode.value; level = parseInt(selLevel.value, 10);
+    board = initBoard(); turn = 1; history = []; lastFrom = -1; lastTo = -1; passes = 0; plies = 0;
+    aiLast = [null, { from: -1, to: -1 }, { from: -1, to: -1 }];
+    over = false; overMsg = ''; thinking = false; note = '';
+    build(); startTurn();
+  }
+
+  function undo() {
+    if (!history.length) return;
+    if (timer) { clearTimeout(timer); timer = null; }
+    thinking = false;
+    var s = history.pop();
+    while (mode === 'cpu' && s.turn !== HUMAN && history.length) s = history.pop();
+    if (mode === 'cpu' && s.turn !== HUMAN) { history.push(s); return; }
+    board = s.b; turn = s.turn; lastFrom = s.lf; lastTo = s.lt; passes = s.passes; plies = s.plies;
+    aiLast = [null, s.a1, s.a2];
+    over = false; overMsg = ''; note = '';
+    startTurn();
+  }
+
+  // ---------- Display ----------
+  function sizes() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor(Math.min((w - 16) / 13, (h - 250) / (ROWS * 0.87)));
+    S = Math.max(40, Math.min(80, s));
+    RH = Math.round(S * 0.87);
+  }
+
+  function build() {
+    sizes();
+    var html = '', y, k, i;
+    for (y = 0; y < rowsOf.length; y++) {
+      html += '<div class="row" style="height:' + RH + 'px">';
+      for (k = 0; k < rowsOf[y].length; k++) {
+        i = rowsOf[y][k];
+        html += '<div class="hole" data-i="' + i + '" id="cc' + i + '" style="width:' + S + 'px;height:' + RH + 'px"></div>';
+      }
+      html += '</div>';
+    }
+    boardEl.innerHTML = html;
+    els = [];
+    for (i = 0; i < cells.length; i++) els.push(document.getElementById('cc' + i));
+  }
+
+  function circle(cls, d) {
+    return '<span class="' + cls + '" style="width:' + d + 'px;height:' + d + 'px;margin:' + (-Math.floor(d / 2)) + 'px 0 0 ' + (-Math.floor(d / 2)) + 'px"></span>';
+  }
+
+  function isDest(i) { var k; for (k = 0; k < dests.length; k++) if (dests[k].to === i) return true; return false; }
+
+  function render() {
+    var i, v, html, pd = Math.floor(Math.min(S, RH) * 0.86), ed = Math.floor(S * 0.42), dd = Math.floor(S * 0.5);
+    var bw = S - 2, bh = RH - 2, box = 'width:' + bw + 'px;height:' + bh + 'px;margin:' + (-Math.floor(bh / 2)) + 'px 0 0 ' + (-Math.floor(bw / 2)) + 'px';
+    var zone = {}, k;
+    for (k = 0; k < 10; k++) { zone[zoneTop[k]] = true; zone[zoneBot[k]] = true; }
+    for (i = 0; i < cells.length; i++) {
+      v = board[i]; html = '';
+      if (i === sel) html += '<b class="box sel" style="' + box + '"></b>';
+      else if (i === lastFrom || i === lastTo) html += '<b class="box last" style="' + box + '"></b>';
+      if (v) html += circle('p' + v + (i === sel ? ' sel' : ''), pd);
+      else {
+        html += circle('e' + (zone[i] ? ' zone' : ''), ed);
+        if (isDest(i)) html += circle('dot', dd);
+      }
+      els[i].innerHTML = html;
+    }
+
+    if (over) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = overMsg;
+    } else {
+      statusEl.className = 'status';
+      var msg;
+      if (thinking) msg = 'Thinking&hellip;';
+      else if (mode === 'cpu') msg = 'Your move (Black)';
+      else msg = (turn === 1 ? 'Black' : 'White') + ' to move';
+      if (note) msg += ' &middot; ' + note;
+      statusEl.innerHTML = msg;
+    }
+    btnUndo.disabled = !history.length || (mode === 'cpu' && history.length === 1 && history[0].turn !== HUMAN);
+  }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && t !== boardEl && !(t.getAttribute && t.getAttribute('data-i'))) t = t.parentNode;
+    if (!t || t === boardEl || over || thinking || (mode === 'cpu' && turn !== HUMAN)) return;
+    var i = parseInt(t.getAttribute('data-i'), 10);
+    note = '';
+    if (sel >= 0 && isDest(i)) { doMove(sel, i); return; }
+    if (board[i] === turn && i !== sel) {
+      sel = i; dests = destsFrom(board, i);
+      if (!dests.length) note = 'that piece cannot move';
+    } else { sel = -1; dests = []; }
+    render();
+  };
+
+  btnUndo.onclick = undo;
+  document.getElementById('btnNew').onclick = newGame;
+  selMode.onchange = function () { store('chinesecheckers.mode', selMode.value); newGame(); };
+  selLevel.onchange = function () { level = parseInt(selLevel.value, 10); store('chinesecheckers.level', selLevel.value); };
+
+  setup();
+  (function () { var p, i; for (p = 1; p <= 2; p++) for (i = 0; i < cells.length; i++) DIST[p].push(hexDist(i, TIP[p])); })();
+
+  if (window.__ccTest) window.__ccTest = { cells: cells, rowsOf: rowsOf, initBoard: initBoard, allMoves: allMoves,
+    chooseMove: chooseMove, hasWon: hasWon, setLevel: function (l) { level = l; }, aiLast: function () { return aiLast; } };
+
+  var sm = store('chinesecheckers.mode'), sl = store('chinesecheckers.level');
+  if (sm === 'cpu' || sm === 'two') selMode.value = sm;
+  if (sl === '1' || sl === '2') selLevel.value = sl;
+  newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Five in a Row</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.board { border-collapse: collapse; margin: 0 auto; background: #ddd; border: 6px solid #ddd; }
+table.board td { border: 0; padding: 0; cursor: pointer; }
+.pt { position: relative; overflow: hidden; }
+.pt.wn { background: #888; }
+.ln { position: absolute; background: #000; font-size: 0; line-height: 0; }
+.sh { position: absolute; left: 0; top: 0; width: 100%; height: 100%; text-align: center; }
+.stone, .mark {
+  display: block; margin: 0 auto;
+  -webkit-border-radius: 50%; border-radius: 50%;
+  -webkit-box-sizing: border-box; box-sizing: border-box;
+}
+.stone.b { background: #000; }
+.stone.w { background: #fff; border-style: solid; border-color: #000; }
+.stone.b .mark { background: #fff; -webkit-border-radius: 0; border-radius: 0; }
+.stone.w .mark { background: #000; -webkit-border-radius: 0; border-radius: 0; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>Five in a Row</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div class="wrap"><table class="board" id="board"></table></div>
+<div class="controls">
+  <select class="btn" id="selMode">
+    <option value="b" selected>You (Black) vs Computer</option>
+    <option value="w">You (White) vs Computer</option>
+    <option value="2">Two Players</option>
+  </select>
+  <select class="btn" id="selLevel">
+    <option value="1">Easy</option>
+    <option value="2" selected>Hard</option>
+  </select>
+  <select class="btn" id="selSize">
+    <option value="15">15 &times; 15</option>
+    <option value="13">13 &times; 13</option>
+    <option value="11">11 &times; 11</option>
+  </select>
+  <button class="btn" id="btnUndo">Undo</button>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  Players take turns placing a stone on an empty point; Black moves first.
+  The first player to get five (or more) stones in an unbroken line &mdash; across, down
+  or diagonally &mdash; wins, and the winning line is shaded. If the board fills up with no
+  winner, the game is a draw. The most recent stone carries a small square mark.
+  Watch out for your opponent's open threes and fours: block them before they become five!
+</div>
+<script>
+(function () {
+  var BLACK = 1, WHITE = -1;
+  var DR = [0, 1, 1, 1], DC = [1, 0, 1, -1];
+  var N = 15, board, turn, last, history, over, winLine, busy, token = 0, mode, level;
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var selMode = document.getElementById('selMode');
+  var selLevel = document.getElementById('selLevel');
+  var selSize = document.getElementById('selSize');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  function winW() { return window.innerWidth || document.documentElement.clientWidth || 600; }
+  function winH() { return window.innerHeight || document.documentElement.clientHeight || 800; }
+  function fitsAt(n) { return Math.floor((winW() - 28) / n) >= 32; }
+  function cellSize() {
+    var sw = Math.floor((winW() - 28) / N);
+    var sh = Math.floor((winH() - 300) / N);
+    var s = Math.min(sw, Math.max(sh, 34));
+    return Math.max(24, Math.min(64, s));
+  }
+
+  // ---------- rules ----------
+  function findWin(b, i, p) {
+    var r0 = Math.floor(i / N), c0 = i % N, d, k, r, c, line;
+    for (d = 0; d < 4; d++) {
+      line = [i];
+      for (k = 1; ; k++) {
+        r = r0 + DR[d] * k; c = c0 + DC[d] * k;
+        if (r < 0 || r >= N || c < 0 || c >= N || b[r * N + c] !== p) break;
+        line.push(r * N + c);
+      }
+      for (k = 1; ; k++) {
+        r = r0 - DR[d] * k; c = c0 - DC[d] * k;
+        if (r < 0 || r >= N || c < 0 || c >= N || b[r * N + c] !== p) break;
+        line.push(r * N + c);
+      }
+      if (line.length >= 5) return line;
+    }
+    return null;
+  }
+  function full(b) { for (var k = 0; k < b.length; k++) if (b[k] === 0) return false; return true; }
+
+  // ---------- AI ----------
+  // L: 9 cells centred on the candidate (index 4). 1 = own, 0 = empty, 2 = blocked.
+  var L = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  var WS = [0, 1, 5, 14, 0, 0];
+  function runLen() {
+    var n = 1, k = 3;
+    while (k >= 0 && L[k] === 1) { n++; k--; }
+    k = 5;
+    while (k < 9 && L[k] === 1) { n++; k++; }
+    return n;
+  }
+  function fiveMoves() {
+    var n = 0, e;
+    for (e = 0; e < 9; e++) if (L[e] === 0) { L[e] = 1; if (runLen() >= 5) n++; L[e] = 0; }
+    return n;
+  }
+  // 6 five, 5 open four (or two fours in a line), 4 four, 3 open three, 2 closed three, 0 other
+  function classify() {
+    if (runLen() >= 5) return 6;
+    var f = fiveMoves();
+    if (f >= 2) return 5;
+    if (f === 1) return 4;
+    var own = 0, e, g, c3 = false;
+    for (e = 0; e < 9; e++) if (L[e] === 1) own++;
+    if (own < 3) return 0;
+    for (e = 0; e < 9; e++) if (L[e] === 0) {
+      L[e] = 1; g = fiveMoves(); L[e] = 0;
+      if (g >= 2) return 3;
+      if (g === 1) c3 = true;
+    }
+    return c3 ? 2 : 0;
+  }
+  function windows() {
+    var s = 0, st, k, n, ok;
+    for (st = 0; st <= 4; st++) {
+      n = 0; ok = true;
+      for (k = st; k < st + 5; k++) { if (L[k] === 2) { ok = false; break; } if (L[k] === 1) n++; }
+      if (ok) s += WS[n];
+    }
+    return s;
+  }
+  var cnt = [0, 0, 0, 0, 0, 0, 0];
+  // fills cnt[] with line classes for player p placing at i; returns window score
+  function analyse(b, i, p) {
+    var r0 = Math.floor(i / N), c0 = i % N, d, k, r, c, v, ws = 0;
+    for (k = 0; k < 7; k++) cnt[k] = 0;
+    for (d = 0; d < 4; d++) {
+      for (k = -4; k <= 4; k++) {
+        r = r0 + DR[d] * k; c = c0 + DC[d] * k;
+        if (r < 0 || r >= N || c < 0 || c >= N) L[k + 4] = 2;
+        else { v = b[r * N + c]; L[k + 4] = v === p ? 1 : (v === 0 ? 0 : 2); }
+      }
+      L[4] = 1;
+      cnt[classify()]++;
+      ws += windows();
+    }
+    return ws;
+  }
+  // tier: 6 five, 5 open four / double four, 4 four+open three, 3 double open three, 0 none
+  function tierOf() {
+    if (cnt[6]) return 6;
+    if (cnt[5] || cnt[4] >= 2) return 5;
+    if (cnt[4] && cnt[3]) return 4;
+    if (cnt[3] >= 2) return 3;
+    return 0;
+  }
+  var ATK = [0, 0, 0, 1e6, 5e6, 1e7, 1e8];
+  var DEF = [0, 0, 0, 4e5, 2e6, 4e6, 5e7];
+  function attack(b, i, p) {
+    var ws = analyse(b, i, p), t = tierOf();
+    if (t) return ATK[t];
+    return cnt[4] * 2500 + cnt[3] * 2000 + cnt[2] * 300 + ws * 6;
+  }
+  function defend(b, i, p, easy) {
+    var ws = analyse(b, i, -p), t = tierOf();
+    if (t === 5 && easy) return 3000;
+    if (t) return DEF[t];
+    return (cnt[4] * 2500 + cnt[3] * 2000 + cnt[2] * 300 + ws * 6) * 0.9;
+  }
+  function candidates(b) {
+    var out = [], mark = [], k, r, c, dr, dc, rr, cc, any = false;
+    for (k = 0; k < N * N; k++) mark.push(false);
+    for (k = 0; k < N * N; k++) {
+      if (b[k] === 0) continue;
+      any = true;
+      r = Math.floor(k / N); c = k % N;
+      for (dr = -2; dr <= 2; dr++) for (dc = -2; dc <= 2; dc++) {
+        rr = r + dr; cc = c + dc;
+        if (rr >= 0 && rr < N && cc >= 0 && cc < N && b[rr * N + cc] === 0) mark[rr * N + cc] = true;
+      }
+    }
+    if (!any) return [Math.floor(N / 2) * N + Math.floor(N / 2)];
+    for (k = 0; k < N * N; k++) if (mark[k]) out.push(k);
+    return out;
+  }
+  function chooseMove(b, p) {
+    var cs = candidates(b), sc = [], k, a, d, easy = level === 1;
+    for (k = 0; k < cs.length; k++) {
+      a = attack(b, cs[k], p);
+      d = defend(b, cs[k], p, easy);
+      var v = a + d;
+      if (easy) { if (v < 1e6) v = v * (0.5 + Math.random()); }
+      else v += Math.random() * 3;
+      sc.push({ i: cs[k], v: v, a: a });
+    }
+    sc.sort(function (x, y) { return y.v - x.v; });
+    if (easy || sc.length === 1 || sc[0].a >= 5e6 || sc[0].v >= 5e7) return sc[0].i;
+    // Hard: look one ply ahead on the best few candidates.
+    var best = sc[0].i, bestV = -Infinity, top = Math.min(6, sc.length), j, m, opp, os, forced, mine;
+    for (k = 0; k < top; k++) {
+      m = sc[k].i;
+      b[m] = p;
+      var cs2 = candidates(b);
+      forced = -1;
+      for (j = 0; j < cs2.length; j++) {
+        if (attack(b, cs2[j], p) >= 1e8) { forced = cs2[j]; break; }
+      }
+      opp = 0;
+      if (forced >= 0) {
+        // opponent must block; unless they can win at once
+        for (j = 0; j < cs2.length; j++) if (attack(b, cs2[j], -p) >= 1e8) { opp = 1e8; break; }
+        if (!opp) opp = attack(b, forced, -p);
+      } else {
+        for (j = 0; j < cs2.length; j++) { os = attack(b, cs2[j], -p); if (os > opp) opp = os; }
+      }
+      b[m] = 0;
+      mine = sc[k].v - 0.5 * opp;
+      if (mine > bestV) { bestV = mine; best = m; }
+    }
+    return best;
+  }
+
+  // ---------- game flow ----------
+  function name(p) { return p === BLACK ? '&#9679; Black' : '&#9675; White'; }
+  function isHuman(p) { return mode === '2' || (mode === 'b' && p === BLACK) || (mode === 'w' && p === WHITE); }
+
+  function newGame() {
+    token++;
+    mode = selMode.value;
+    level = parseInt(selLevel.value, 10);
+    var n = parseInt(selSize.value, 10);
+    if (n !== N || !boardEl.rows.length) { N = n; build(); }
+    store('gomoku.mode', mode);
+    board = []; for (var k = 0; k < N * N; k++) board.push(0);
+    turn = BLACK; last = -1; history = []; over = false; winLine = null; busy = false;
+    render();
+    maybeComputer();
+  }
+
+  function play(i) {
+    history.push({ b: board.slice(), t: turn, last: last });
+    board[i] = turn;
+    last = i;
+    var w = findWin(board, i, turn);
+    if (w) { winLine = w; over = true; }
+    else if (full(board)) over = true;
+    else turn = -turn;
+    render();
+    maybeComputer();
+  }
+
+  function maybeComputer() {
+    if (over || isHuman(turn)) return;
+    busy = true;
+    render();
+    var my = token;
+    setTimeout(function () {
+      if (my !== token) return;
+      var m = chooseMove(board, turn);
+      busy = false;
+      play(m);
+    }, 50);
+  }
+
+  function build() {
+    var s = cellSize(), h = Math.floor(s / 2), html = '', r, c, hl, hw, vt, vh, th, tv;
+    for (r = 0; r < N; r++) {
+      html += '<tr>';
+      for (c = 0; c < N; c++) {
+        th = (r === 0 || r === N - 1) ? 2 : 1;
+        tv = (c === 0 || c === N - 1) ? 2 : 1;
+        hl = c === 0 ? h - 1 : 0; hw = c === 0 ? s - h + 1 : (c === N - 1 ? h + 1 : s);
+        vt = r === 0 ? h - 1 : 0; vh = r === 0 ? s - h + 1 : (r === N - 1 ? h + 1 : s);
+        html += '<td data-i="' + (r * N + c) + '"><div class="pt" style="width:' + s + 'px;height:' + s + 'px">' +
+          '<div class="ln" style="left:' + hl + 'px;width:' + hw + 'px;top:' + (h - (th > 1 ? 1 : 0)) + 'px;height:' + th + 'px"></div>' +
+          '<div class="ln" style="top:' + vt + 'px;height:' + vh + 'px;left:' + (h - (tv > 1 ? 1 : 0)) + 'px;width:' + tv + 'px"></div>' +
+          '<div class="sh"></div></div></td>';
+      }
+      html += '</tr>';
+    }
+    boardEl.innerHTML = html;
+  }
+
+  function render() {
+    var s = cellSize(), D = s - Math.max(4, Math.floor(s * 0.1)), bw = Math.max(3, Math.round(s * 0.1));
+    var mk = Math.max(6, Math.floor(s * 0.2)), top = Math.floor((s - D) / 2);
+    var tds = boardEl.getElementsByTagName('td'), k, v, html, inner, pt, onWin = {};
+    if (winLine) for (k = 0; k < winLine.length; k++) onWin[winLine[k]] = true;
+    for (k = 0; k < tds.length; k++) {
+      v = board[k];
+      pt = tds[k].firstChild;
+      pt.className = onWin[k] ? 'pt wn' : 'pt';
+      html = '';
+      if (v !== 0) {
+        var b2 = v === BLACK ? 0 : bw;
+        inner = D - 2 * b2;
+        html = '<span class="stone ' + (v === BLACK ? 'b' : 'w') + '" style="width:' + D + 'px;height:' + D + 'px;margin-top:' + top + 'px' +
+          (v === WHITE ? ';border-width:' + bw + 'px' : '') + '">';
+        if (k === last) html += '<span class="mark" style="width:' + mk + 'px;height:' + mk + 'px;margin-top:' + Math.floor((inner - mk) / 2) + 'px"></span>';
+        html += '</span>';
+      }
+      pt.lastChild.innerHTML = html;
+    }
+    var msg;
+    if (over) {
+      statusEl.className = 'status win';
+      if (!winLine) msg = 'Board full &mdash; it is a draw!';
+      else if (mode === '2') msg = (turn === BLACK ? 'Black' : 'White') + ' wins with five in a row!';
+      else msg = isHuman(turn) ? 'You win with five in a row!' : 'Computer wins &mdash; five in a row.';
+      msg += ' Tap New to play again.';
+    } else {
+      statusEl.className = 'status';
+      if (busy) msg = 'Thinking&hellip;';
+      else if (mode === '2') msg = name(turn) + ' to move.';
+      else msg = 'Your move (' + name(turn) + ').';
+    }
+    statusEl.innerHTML = msg;
+    document.getElementById('btnUndo').disabled = history.length === 0;
+  }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && t.tagName !== 'TD') t = t.parentNode;
+    if (!t || over || busy || !isHuman(turn)) return;
+    var i = parseInt(t.getAttribute('data-i'), 10);
+    if (board[i] === 0) play(i);
+  };
+
+  document.getElementById('btnUndo').onclick = function () {
+    if (!history.length) return;
+    token++; busy = false;
+    var s;
+    do { s = history.pop(); } while (history.length && mode !== '2' && !isHuman(s.t));
+    board = s.b; turn = s.t; last = s.last; over = false; winLine = null;
+    render();
+    maybeComputer();
+  };
+  document.getElementById('btnNew').onclick = newGame;
+  selMode.onchange = newGame;
+  selSize.onchange = function () { store('gomoku.size', selSize.value); newGame(); };
+  selLevel.onchange = function () { level = parseInt(selLevel.value, 10); store('gomoku.level', selLevel.value); };
+
+  var sm = store('gomoku.mode'), sl = store('gomoku.level'), ss = store('gomoku.size');
+  if (sm) selMode.value = sm;
+  if (sl) selLevel.value = sl;
+  if (ss) selSize.value = ss;
+  else selSize.value = fitsAt(15) ? '15' : (fitsAt(13) ? '13' : '11');
+  N = parseInt(selSize.value, 10);
+  build();
+  newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

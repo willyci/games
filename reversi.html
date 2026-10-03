@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Reversi</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.board { border-collapse: collapse; margin: 0 auto; border: 3px solid #000; }
+table.board td { border: 1px solid #000; padding: 0; text-align: center; vertical-align: middle; cursor: pointer; background: #ccc; }
+.disc, .dot, .mark {
+  display: block; margin: 0 auto;
+  -webkit-border-radius: 50%; border-radius: 50%;
+  -webkit-box-sizing: border-box; box-sizing: border-box;
+}
+.disc.b { background: #000; border: 2px solid #000; }
+.disc.w { background: #fff; border-style: solid; border-color: #000; }
+.dot { background: #555; }
+.disc.b .mark { background: #fff; -webkit-border-radius: 0; border-radius: 0; }
+.disc.w .mark { background: #000; -webkit-border-radius: 0; border-radius: 0; }
+.score { font-size: 20px; padding: 6px 0 0; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>Reversi</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div class="wrap"><table class="board" id="board"></table></div>
+<div class="controls">
+  <select class="btn" id="selMode">
+    <option value="b" selected>You (Black) vs Computer</option>
+    <option value="w">You (White) vs Computer</option>
+    <option value="2">Two Players</option>
+  </select>
+  <select class="btn" id="selLevel">
+    <option value="1">Easy</option>
+    <option value="2" selected>Medium</option>
+    <option value="3">Hard</option>
+  </select>
+  <button class="btn" id="btnUndo">Undo</button>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  Black moves first. Place a disc so that it traps one or more of your opponent's discs in a
+  straight line (across, down or diagonally) between the new disc and another of your discs.
+  All trapped discs flip to your colour. Small dots show the legal moves. If you have no legal
+  move you must pass; the game ends when neither player can move. Whoever has more discs wins.
+  The most recently placed disc carries a small square mark. Corners can never be flipped &mdash;
+  they are valuable!
+</div>
+<script>
+(function () {
+  var BLACK = 1, WHITE = -1, WALL = 3;
+  var DIRS = [-11, -10, -9, -1, 1, 9, 10, 11];
+  var WT = [
+    100, -20, 10,  5,  5, 10, -20, 100,
+    -20, -50, -2, -2, -2, -2, -50, -20,
+     10,  -2, -1, -1, -1, -1,  -2,  10,
+      5,  -2, -1, -1, -1, -1,  -2,   5,
+      5,  -2, -1, -1, -1, -1,  -2,   5,
+     10,  -2, -1, -1, -1, -1,  -2,  10,
+    -20, -50, -2, -2, -2, -2, -50, -20,
+    100, -20, 10,  5,  5, 10, -20, 100
+  ];
+  var SQ = [], POSW = [], i, r, c;
+  for (i = 0; i < 100; i++) POSW.push(0);
+  for (r = 0; r < 8; r++) for (c = 0; c < 8; c++) { SQ.push((r + 1) * 10 + c + 1); POSW[(r + 1) * 10 + c + 1] = WT[r * 8 + c]; }
+  // corners and the X / C squares next to them
+  var CORNERS = [
+    [11, [12, 21, 22]], [18, [17, 28, 27]], [81, [71, 82, 72]], [88, [87, 78, 77]]
+  ];
+
+  var board, turn, last, history, over, note, busy, token = 0, mode, level;
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var selMode = document.getElementById('selMode');
+  var selLevel = document.getElementById('selLevel');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  function cellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor(Math.min(w - 30, h - 340) / 8);
+    return Math.max(44, Math.min(100, s));
+  }
+
+  // ---------- rules ----------
+  function newBoard() {
+    var b = [], k;
+    for (k = 0; k < 100; k++) b.push(WALL);
+    for (k = 0; k < 64; k++) b[SQ[k]] = 0;
+    b[44] = WHITE; b[55] = WHITE; b[45] = BLACK; b[54] = BLACK;
+    return b;
+  }
+  function canPlay(b, sq, p) {
+    if (b[sq] !== 0) return false;
+    var d, j, k;
+    for (k = 0; k < 8; k++) {
+      d = DIRS[k]; j = sq + d;
+      if (b[j] !== -p) continue;
+      j += d;
+      while (b[j] === -p) j += d;
+      if (b[j] === p) return true;
+    }
+    return false;
+  }
+  function moveList(b, p) {
+    var out = [], k;
+    for (k = 0; k < 64; k++) if (canPlay(b, SQ[k], p)) out.push(SQ[k]);
+    return out;
+  }
+  function doMove(b, sq, p) {
+    var fl = [], d, j, n, k;
+    for (k = 0; k < 8; k++) {
+      d = DIRS[k]; j = sq + d; n = 0;
+      while (b[j] === -p) { j += d; n++; }
+      if (n > 0 && b[j] === p) {
+        j = sq + d;
+        while (b[j] === -p) { b[j] = p; fl.push(j); j += d; }
+      }
+    }
+    b[sq] = p;
+    return fl;
+  }
+  function undoMove(b, sq, p, fl) {
+    b[sq] = 0;
+    for (var k = 0; k < fl.length; k++) b[fl[k]] = -p;
+  }
+  function count(b, p) { var n = 0, k; for (k = 0; k < 64; k++) if (b[SQ[k]] === p) n++; return n; }
+  function empties(b) { return count(b, 0); }
+
+  // ---------- AI ----------
+  function finalScore(b, p) {
+    var d = count(b, p) - count(b, -p);
+    return d > 0 ? 100000 + d : (d < 0 ? -100000 + d : 0);
+  }
+  function evalMedium(b, p) {
+    var s = 0, k, q;
+    for (k = 0; k < 64; k++) { q = SQ[k]; if (b[q] === p) s += POSW[q]; else if (b[q] === -p) s -= POSW[q]; }
+    return s;
+  }
+  function evalHard(b, p) {
+    var s = 0, k, q, skip = {}, cp = 0, co = 0, j;
+    for (k = 0; k < 4; k++) {
+      q = CORNERS[k][0];
+      if (b[q] !== 0) {
+        if (b[q] === p) cp++; else co++;
+        for (j = 0; j < 3; j++) skip[CORNERS[k][1][j]] = true;
+      }
+    }
+    for (k = 0; k < 64; k++) {
+      q = SQ[k];
+      if (b[q] === 0) continue;
+      var w = skip[q] ? 4 : POSW[q];
+      if (b[q] === p) s += w; else s -= w;
+    }
+    var mp = moveList(b, p).length, mo = moveList(b, -p).length;
+    s += 8 * (mp - mo);
+    if (mo === 0 && mp > 0) s += 15;
+    s += 40 * (cp - co);
+    if (empties(b) < 14) s += 3 * (count(b, p) - count(b, -p));
+    return s;
+  }
+  function order(ms) {
+    ms.sort(function (a, b) { return POSW[b] - POSW[a]; });
+    return ms;
+  }
+  function negamax(b, p, depth, alpha, beta, ev, passed) {
+    if (depth <= 0) return ev(b, p);
+    var ms = moveList(b, p), best = -Infinity, k, fl, v;
+    if (!ms.length) {
+      if (passed) return finalScore(b, p);
+      return -negamax(b, -p, depth - 1, -beta, -alpha, ev, true);
+    }
+    order(ms);
+    for (k = 0; k < ms.length; k++) {
+      fl = doMove(b, ms[k], p);
+      v = -negamax(b, -p, depth - 1, -beta, -alpha, ev, false);
+      undoMove(b, ms[k], p, fl);
+      if (v > best) best = v;
+      if (best > alpha) alpha = best;
+      if (alpha >= beta) break;
+    }
+    return best;
+  }
+  function shuffle(a) {
+    for (var k = a.length - 1; k > 0; k--) { var j = Math.floor(Math.random() * (k + 1)), t = a[k]; a[k] = a[j]; a[j] = t; }
+    return a;
+  }
+  function chooseMove(b, p) {
+    var ms = shuffle(moveList(b, p)), k, best = null, bestV = -Infinity, v, fl;
+    if (!ms.length) return null;
+    if (level === 1) {
+      if (Math.random() < 0.2) return ms[0];
+      for (k = 0; k < ms.length; k++) {
+        fl = doMove(b, ms[k], p); undoMove(b, ms[k], p, fl);
+        v = fl.length + Math.random() * 3 + (POSW[ms[k]] === 100 ? 2 : 0);
+        if (v > bestV) { bestV = v; best = ms[k]; }
+      }
+      return best;
+    }
+    var depth = level === 2 ? 3 : 5, ev = level === 2 ? evalMedium : evalHard;
+    var e = empties(b);
+    if (level === 3 && e <= 8) { depth = e + 4; ev = finalScore; }
+    // stable sort keeps the random order among equal weights
+    ms = order(ms);
+    var alpha = -Infinity, beta = Infinity;
+    for (k = 0; k < ms.length; k++) {
+      fl = doMove(b, ms[k], p);
+      v = -negamax(b, -p, depth - 1, -beta, -alpha, ev, false);
+      undoMove(b, ms[k], p, fl);
+      if (v > bestV) { bestV = v; best = ms[k]; }
+      if (bestV > alpha) alpha = bestV;
+    }
+    return best;
+  }
+
+  // ---------- game flow ----------
+  function name(p) { return p === BLACK ? 'Black' : 'White'; }
+  function isHuman(p) { return mode === '2' || (mode === 'b' && p === BLACK) || (mode === 'w' && p === WHITE); }
+
+  function newGame() {
+    token++;
+    mode = selMode.value;
+    level = parseInt(selLevel.value, 10);
+    store('reversi.mode', mode);
+    board = newBoard(); turn = BLACK; last = 0; history = []; over = false; note = ''; busy = false;
+    render();
+    maybeComputer();
+  }
+
+  function play(sq) {
+    history.push({ b: board.slice(), t: turn, last: last });
+    doMove(board, sq, turn);
+    last = sq;
+    turn = -turn;
+    advance();
+  }
+
+  function advance() {
+    note = '';
+    if (!moveList(board, turn).length) {
+      if (!moveList(board, -turn).length) over = true;
+      else { note = name(turn) + ' has no legal move and passes. '; turn = -turn; }
+    }
+    render();
+    maybeComputer();
+  }
+
+  function maybeComputer() {
+    if (over || isHuman(turn)) return;
+    busy = true;
+    render();
+    var my = token;
+    setTimeout(function () {
+      if (my !== token) return;
+      var m = chooseMove(board, turn);
+      busy = false;
+      if (m === null) { advance(); return; }
+      play(m);
+    }, 50);
+  }
+
+  function build() {
+    var s = cellSize(), html = '', rr, cc;
+    for (rr = 0; rr < 8; rr++) {
+      html += '<tr>';
+      for (cc = 0; cc < 8; cc++) html += '<td data-i="' + ((rr + 1) * 10 + cc + 1) + '" style="width:' + s + 'px;height:' + s + 'px"></td>';
+      html += '</tr>';
+    }
+    boardEl.innerHTML = html;
+  }
+
+  function render() {
+    var s = cellSize(), D = Math.floor(s * 0.8), bw = Math.max(3, Math.round(s * 0.09));
+    var dot = Math.max(8, Math.floor(s * 0.18)), mk = Math.max(6, Math.floor(s * 0.16));
+    var tds = boardEl.getElementsByTagName('td'), k, q, v, html, inner, legal = {};
+    var showDots = !over && !busy && isHuman(turn);
+    if (showDots) { var ml = moveList(board, turn); for (k = 0; k < ml.length; k++) legal[ml[k]] = true; }
+    for (k = 0; k < tds.length; k++) {
+      q = parseInt(tds[k].getAttribute('data-i'), 10);
+      v = board[q];
+      html = '';
+      if (v !== 0) {
+        var cls = v === BLACK ? 'b' : 'w', b2 = v === BLACK ? 2 : bw;
+        inner = D - 2 * b2;
+        html = '<span class="disc ' + cls + '" style="width:' + D + 'px;height:' + D + 'px' + (v === WHITE ? ';border-width:' + bw + 'px' : '') + '">';
+        if (q === last) html += '<span class="mark" style="width:' + mk + 'px;height:' + mk + 'px;margin-top:' + Math.floor((inner - mk) / 2) + 'px"></span>';
+        html += '</span>';
+      } else if (legal[q]) {
+        html = '<span class="dot" style="width:' + dot + 'px;height:' + dot + 'px"></span>';
+      }
+      tds[k].innerHTML = html;
+    }
+    var nb = count(board, BLACK), nw = count(board, WHITE);
+    var score = '&#9679; Black ' + nb + ' &nbsp;&middot;&nbsp; &#9675; White ' + nw;
+    var msg;
+    if (over) {
+      statusEl.className = 'status win';
+      if (nb === nw) msg = 'Game over &mdash; it is a draw!';
+      else {
+        var w = nb > nw ? BLACK : WHITE;
+        if (mode === '2') msg = name(w) + ' wins!';
+        else msg = isHuman(w) ? 'You win!' : 'Computer wins.';
+        msg = 'Game over &mdash; ' + msg;
+      }
+      msg += ' Tap New to play again.';
+    } else {
+      statusEl.className = 'status';
+      if (busy) msg = note + 'Thinking&hellip;';
+      else if (mode === '2') msg = note + name(turn) + ' to move.';
+      else msg = note + 'Your move (' + name(turn) + ').';
+    }
+    statusEl.innerHTML = score + '<br>' + msg;
+    document.getElementById('btnUndo').disabled = history.length === 0;
+  }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && t.tagName !== 'TD') t = t.parentNode;
+    if (!t || over || busy || !isHuman(turn)) return;
+    var sq = parseInt(t.getAttribute('data-i'), 10);
+    if (canPlay(board, sq, turn)) play(sq);
+  };
+
+  document.getElementById('btnUndo').onclick = function () {
+    if (!history.length) return;
+    token++; busy = false;
+    var s;
+    do { s = history.pop(); } while (history.length && mode !== '2' && !isHuman(s.t));
+    board = s.b; turn = s.t; last = s.last; over = false; note = '';
+    render();
+    maybeComputer();
+  };
+  document.getElementById('btnNew').onclick = newGame;
+  selMode.onchange = newGame;
+  selLevel.onchange = function () { level = parseInt(selLevel.value, 10); store('reversi.level', selLevel.value); };
+
+  var sm = store('reversi.mode'), sl = store('reversi.level');
+  if (sm) selMode.value = sm;
+  if (sl) selLevel.value = sl;
+  build();
+  newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

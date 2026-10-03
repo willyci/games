@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Minesweeper</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
+.topbar td { padding: 6px 8px; vertical-align: middle; }
+.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
+.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
+.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
+.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 48px; line-height: 44px;
+  padding: 0 14px; margin: 4px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 36px 0 12px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
+  background: #eee; border-bottom: 2px solid #000;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 14px 0 8px; }
+.controls { text-align: center; padding: 4px 8px 12px; }
+.help {
+  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 44px; padding-bottom: 0; }
+.help h2 {
+  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.board { border-collapse: collapse; margin: 0 auto; border: 3px solid #000; }
+table.board td {
+  border: 1px solid #000; padding: 0; text-align: center; vertical-align: middle;
+  cursor: pointer; font-weight: bold; color: #000; overflow: hidden;
+}
+td.h { background: #c8c8c8; }
+td.o { background: #fff; }
+td.boom { background: #000; color: #fff; }
+.mine { display: inline-block; vertical-align: middle; background: #000; border-radius: 50%; }
+td.boom .mine { background: #fff; }
+.pole { display: inline-block; vertical-align: middle; border-left: 3px solid #000; }
+.tri { display: inline-block; vertical-align: top; width: 0; height: 0;
+  border-left-style: solid; border-left-color: #000;
+  border-top-style: solid; border-top-color: transparent;
+  border-bottom-style: solid; border-bottom-color: transparent; }
+</style>
+</head>
+<body>
+<table class="topbar"><tr>
+  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
+  <td><h1>Minesweeper</h1></td>
+  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
+</tr></table>
+<div class="status" id="status"></div>
+<div class="wrap"><table class="board" id="board"></table></div>
+<div class="controls">
+  <button class="btn" id="btnDig">Dig</button><button class="btn" id="btnFlag">Flag</button>
+  &nbsp;
+  <button class="btn" id="btnUndo">Undo</button>
+  <select class="btn" id="selLevel">
+    <option value="beginner" selected>Beginner 9&times;9</option>
+    <option value="intermediate">Intermediate 12&times;12</option>
+    <option value="expert">Expert 16&times;16</option>
+  </select>
+</div>
+<div class="help">
+  <h2>How to play</h2>
+  Uncover every square that does not hide a mine. A number tells how many mines touch that square
+  (including diagonals). Choose <b>Dig</b> to uncover squares or <b>Flag</b> to mark squares you think hide a mine
+  (tap a flag again in Flag mode to remove it). Your first tap is always safe. Tapping an uncovered number whose
+  neighbouring flags match it opens all its other neighbours. Beginner has 10 mines, Intermediate 24, Expert 40.
+  Your game is saved automatically; tap New to start over.
+</div>
+<script>
+(function () {
+  var LEVELS = { beginner: [9, 9, 10], intermediate: [12, 12, 24], expert: [16, 16, 40] };
+  var R = 9, C = 9, M = 10, level = 'beginner';
+  var mine = [], st = [], adj = [], nbr = [];   // st: 0 hidden, 1 open, 2 flagged
+  var placed = false, over = 0, boom = -1, moves = 0, mode = 'dig', hist = [];
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var selLevel = document.getElementById('selLevel');
+  var tds = [], cache = [], flagHTML = '', mineHTML = '';
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  function cellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor(Math.min((w - 24) / C, (h - 300) / R));
+    return Math.max(30, Math.min(66, s));
+  }
+
+  function setLevel(lv) {
+    if (!LEVELS[lv]) lv = 'beginner';
+    level = lv; R = LEVELS[lv][0]; C = LEVELS[lv][1]; M = LEVELS[lv][2];
+    selLevel.value = lv;
+    var i, r, c, dr, dc, rr, cc;
+    nbr = [];
+    for (i = 0; i < R * C; i++) {
+      r = Math.floor(i / C); c = i % C; nbr[i] = [];
+      for (dr = -1; dr <= 1; dr++) for (dc = -1; dc <= 1; dc++) {
+        if (!dr && !dc) continue;
+        rr = r + dr; cc = c + dc;
+        if (rr >= 0 && rr < R && cc >= 0 && cc < C) nbr[i].push(rr * C + cc);
+      }
+    }
+  }
+
+  function computeAdj() {
+    var i, j, n;
+    adj = [];
+    for (i = 0; i < R * C; i++) {
+      n = 0;
+      for (j = 0; j < nbr[i].length; j++) if (mine[nbr[i][j]]) n++;
+      adj.push(n);
+    }
+  }
+
+  function placeMines(safe) {
+    var cand = [], i, j, t, ok;
+    mine = [];
+    for (i = 0; i < R * C; i++) {
+      mine.push(false);
+      ok = i !== safe;
+      for (j = 0; j < nbr[safe].length && ok; j++) if (nbr[safe][j] === i) ok = false;
+      if (ok) cand.push(i);
+    }
+    for (i = 0; i < M; i++) {
+      j = i + Math.floor(Math.random() * (cand.length - i));
+      t = cand[i]; cand[i] = cand[j]; cand[j] = t;
+      mine[cand[i]] = true;
+    }
+    computeAdj();
+    placed = true;
+  }
+
+  function newGame() {
+    setLevel(selLevel.value);
+    store('mines.level', level);
+    var i;
+    mine = []; st = []; adj = [];
+    for (i = 0; i < R * C; i++) { mine.push(false); st.push(0); adj.push(0); }
+    placed = false; over = 0; boom = -1; moves = 0; hist = [];
+    build(); save(); render();
+  }
+
+  function save() {
+    var m = '', i;
+    for (i = 0; i < R * C; i++) m += mine[i] ? '1' : '0';
+    try {
+      store('mines.state', JSON.stringify({ lv: level, m: m, s: st.join(''), p: placed, o: over, b: boom,
+        mv: moves, md: mode, h: hist.slice(-50) }));
+    } catch (e) {}
+  }
+
+  function load() {
+    try {
+      var o = JSON.parse(store('mines.state')), i;
+      if (!o || !LEVELS[o.lv]) return false;
+      setLevel(o.lv);
+      if (!o.m || o.m.length !== R * C || !o.s || o.s.length !== R * C) return false;
+      mine = []; st = [];
+      for (i = 0; i < R * C; i++) { mine.push(o.m.charAt(i) === '1'); st.push(parseInt(o.s.charAt(i), 10)); }
+      computeAdj();
+      placed = !!o.p; over = o.o || 0; boom = typeof o.b === 'number' ? o.b : -1;
+      moves = o.mv || 0; mode = o.md === 'flag' ? 'flag' : 'dig'; hist = o.h || [];
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function build() {
+    var s = cellSize(), html = '', r, c;
+    var fs = Math.floor(s * 0.55), d = Math.floor(s * 0.42), t = Math.max(4, Math.floor(s * 0.2));
+    mineHTML = '<span class="mine" style="width:' + d + 'px;height:' + d + 'px"></span>';
+    flagHTML = '<span class="pole" style="height:' + Math.floor(s * 0.55) + 'px"><span class="tri" style="border-left-width:' +
+      Math.floor(t * 1.5) + 'px;border-top-width:' + t + 'px;border-bottom-width:' + t + 'px"></span></span>';
+    for (r = 0; r < R; r++) {
+      html += '<tr>';
+      for (c = 0; c < C; c++) html += '<td data-i="' + (r * C + c) + '" style="width:' + s + 'px;height:' + s + 'px;font-size:' + fs + 'px"></td>';
+      html += '</tr>';
+    }
+    boardEl.innerHTML = html;
+    tds = boardEl.getElementsByTagName('td');
+    cache = [];
+  }
+
+  function count(v) { var n = 0, i; for (i = 0; i < st.length; i++) if (st[i] === v) n++; return n; }
+
+  function render() {
+    var i, cls, html;
+    for (i = 0; i < R * C; i++) {
+      cls = 'h'; html = '&nbsp;';
+      if (st[i] === 1) {
+        if (mine[i]) { cls = 'o'; html = mineHTML; }
+        else { cls = 'o'; html = adj[i] ? String(adj[i]) : '&nbsp;'; }
+      } else if (st[i] === 2) {
+        if (over === 1 && !mine[i]) { cls = 'o'; html = '&times;'; }
+        else html = flagHTML;
+      } else if (over && mine[i]) { cls = 'o'; html = mineHTML; }
+      if (i === boom) cls = 'boom';
+      if (cache[i] !== cls + '|' + html) {
+        cache[i] = cls + '|' + html;
+        tds[i].className = cls;
+        tds[i].innerHTML = html;
+      }
+    }
+    var flags = count(2);
+    if (over === 1) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'Boom! You hit a mine. Tap Undo or New.';
+    } else if (over === 2) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'Cleared in ' + moves + ' move' + (moves === 1 ? '' : 's') + '! Tap New to play again.';
+    } else {
+      statusEl.className = 'status';
+      statusEl.innerHTML = (placed ? '' : 'Tap any square to start &nbsp;&middot;&nbsp; ') +
+        'Mines left: ' + (M - flags) + ' &nbsp;&middot;&nbsp; Moves: ' + moves;
+    }
+    document.getElementById('btnDig').className = mode === 'dig' ? 'btn on' : 'btn';
+    document.getElementById('btnFlag').className = mode === 'flag' ? 'btn on' : 'btn';
+    document.getElementById('btnUndo').disabled = hist.length === 0;
+  }
+
+  // Iterative flood fill from the given start cells.
+  function reveal(list) {
+    var stack = list.slice(), j, k, n;
+    while (stack.length) {
+      j = stack.pop();
+      if (st[j] !== 0) continue;
+      st[j] = 1;
+      if (mine[j]) { over = 1; if (boom < 0) boom = j; continue; }
+      if (adj[j] === 0) for (k = 0; k < nbr[j].length; k++) { n = nbr[j][k]; if (st[n] === 0) stack.push(n); }
+    }
+  }
+
+  function checkWin() {
+    if (over) return;
+    if (count(1) === R * C - M) {
+      over = 2;
+      for (var i = 0; i < R * C; i++) if (mine[i]) st[i] = 2;
+    }
+  }
+
+  function tap(i) {
+    if (over) return;
+    var snap = { s: st.join(''), p: placed, mv: moves }, changed = false, k, n, f, hidden;
+    if (st[i] === 0) {
+      if (mode === 'flag') { st[i] = 2; changed = true; }
+      else {
+        if (!placed) placeMines(i);
+        reveal([i]); changed = true;
+      }
+    } else if (st[i] === 2) {
+      if (mode === 'flag') { st[i] = 0; changed = true; }
+    } else if (adj[i] > 0) {
+      f = 0; hidden = [];
+      for (k = 0; k < nbr[i].length; k++) {
+        n = nbr[i][k];
+        if (st[n] === 2) f++; else if (st[n] === 0) hidden.push(n);
+      }
+      if (f === adj[i] && hidden.length) { reveal(hidden); changed = true; }
+    }
+    if (!changed) return;
+    hist.push(snap);
+    if (hist.length > 200) hist.shift();
+    moves++;
+    checkWin();
+    save(); render();
+  }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && t.tagName !== 'TD') t = t.parentNode;
+    if (!t) return;
+    tap(parseInt(t.getAttribute('data-i'), 10));
+  };
+
+  document.getElementById('btnUndo').onclick = function () {
+    if (!hist.length) return;
+    var s = hist.pop(), i;
+    for (i = 0; i < R * C; i++) st[i] = parseInt(s.s.charAt(i), 10);
+    placed = s.p; moves = s.mv; over = 0; boom = -1;
+    save(); render();
+  };
+  document.getElementById('btnDig').onclick = function () { mode = 'dig'; save(); render(); };
+  document.getElementById('btnFlag').onclick = function () { mode = 'flag'; save(); render(); };
+  document.getElementById('btnNew').onclick = newGame;
+  selLevel.onchange = newGame;
+
+  var savedLv = store('mines.level');
+  if (savedLv && LEVELS[savedLv]) selLevel.value = savedLv;
+  if (load()) { build(); render(); } else newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>
