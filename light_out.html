@@ -14,47 +14,65 @@ body {
   -webkit-user-select: none; user-select: none;
   -webkit-text-size-adjust: 100%;
 }
-.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
-.topbar td { padding: 6px 8px; vertical-align: middle; }
-.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
-.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
-.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
-.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.app-container {
+  width: 100%; max-width: 680px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.main-layout {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%;
+}
+.board-column {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%;
+}
+.bottom-menu {
+  display: flex; flex-direction: column; gap: 6px; width: 100%;
+}
+.action-bar-grid {
+  display: flex; flex-wrap: wrap; gap: 6px; width: 100%; justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0; min-width: 60px; margin: 0;
+}
+.match-setup-row {
+  display: flex; gap: 6px; width: 100%; justify-content: center;
+}
+.match-setup-row select.btn {
+  flex: 1 1 0; min-width: 0; margin: 0;
+}
 .btn {
   display: inline-block; box-sizing: border-box; position: relative;
-  min-width: 48px; min-height: 48px; line-height: 44px;
-  padding: 0 14px; margin: 4px;
+  min-width: 48px; min-height: 38px; line-height: 34px;
+  padding: 0 10px; margin: 2px;
   border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
   box-shadow: 2px 2px 0 #000;
-  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  font-family: Georgia, "Times New Roman", serif; font-size: 16px; font-weight: bold;
   text-decoration: none; text-align: center; vertical-align: middle;
   cursor: pointer; -webkit-appearance: none; appearance: none;
 }
 .btn:active, .btn.on { background: #000; color: #fff; }
-.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn:active { left: 1px; top: 1px; box-shadow: none; }
 .btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
 select.btn {
-  padding: 0 36px 0 12px; text-align: left;
+  padding: 0 32px 0 10px; text-align: left;
   background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
 }
 select.btn:active { color: #000; background-color: #fff; }
 .status {
-  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
-  background: #eee; border-bottom: 2px solid #000;
+  text-align: center; font-size: 16px; line-height: 1.25; padding: 6px 10px; min-height: 22px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px; width: 100%; box-sizing: border-box;
 }
 .status.win { background: #000; color: #fff; font-weight: bold; }
-.wrap { text-align: center; padding: 14px 0 8px; }
-.controls { text-align: center; padding: 4px 8px 12px; }
+.wrap { text-align: center; padding: 6px 0 4px; width: 100%; }
 .help {
-  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  font-size: 15px; line-height: 1.4; margin: 6px 0 16px; padding: 0 12px 10px;
   border: 2px solid #000; border-radius: 6px; overflow: hidden;
 }
-.help.closed { height: 44px; padding-bottom: 0; }
+.help.closed { height: 40px; padding-bottom: 0; }
 .help h2 {
-  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  font-size: 16px; margin: 0 -12px 6px; padding: 0 12px; height: 40px; line-height: 40px;
   border-bottom: 1px solid #000; cursor: pointer;
 }
-.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help h2:after { content: "▴"; float: right; font-size: 18px; }
 .help.closed h2:after { content: "+"; }
 /* ===== Game specific ===== */
 table.board { border-collapse: collapse; margin: 0 auto; border: 3px solid #000; }
@@ -65,27 +83,34 @@ td.lit span { display: block; margin: 0 auto; border: 3px solid #fff; border-rad
 </style>
 </head>
 <body>
-<table class="topbar"><tr>
-  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
-  <td><h1>Lights Out</h1></td>
-  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
-</tr></table>
-<div class="status" id="status"></div>
-<div class="wrap"><table class="board" id="board"></table></div>
-<div class="controls">
-  <select class="btn" id="selSize">
-    <option value="4">4 &times; 4</option>
-    <option value="5" selected>5 &times; 5</option>
-    <option value="6">6 &times; 6</option>
-    <option value="7">7 &times; 7</option>
-  </select>
-  <button class="btn" id="btnUndo">Undo</button>
-  <button class="btn" id="btnReset">Restart</button>
-</div>
-<div class="help">
-  <h2>How to play</h2>
-  Tapping a square flips it and its four neighbours (up, down, left, right).
-  Turn every light off (all squares white) in as few moves as possible.
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status"></div>
+      <div class="wrap"><table class="board" id="board"></table></div>
+    </section>
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnUndo">Undo</button>
+        <button class="btn" id="btnReset">Restart</button>
+        <button class="btn" id="btnNew">New</button>
+      </div>
+      <div class="match-setup-row">
+        <select class="btn" id="selSize">
+          <option value="4">4 &times; 4</option>
+          <option value="5" selected>5 &times; 5</option>
+          <option value="6">6 &times; 6</option>
+          <option value="7">7 &times; 7</option>
+        </select>
+      </div>
+    </section>
+  </main>
+  <div class="help">
+    <h2>How to play</h2>
+    Tapping a square flips it and its four neighbours (up, down, left, right).
+    Turn every light off (all squares white) in as few moves as possible.
+  </div>
 </div>
 <script>
 (function () {
@@ -99,7 +124,7 @@ td.lit span { display: block; margin: 0 auto; border: 3px solid #fff; border-rad
   function cellSize() {
     var w = window.innerWidth || document.documentElement.clientWidth || 600;
     var h = window.innerHeight || document.documentElement.clientHeight || 800;
-    var s = Math.floor(Math.min(w - 40, h - 330) / N);
+    var s = Math.floor(Math.min(w - 30, h - 200) / N);
     return Math.max(44, Math.min(110, s));
   }
 

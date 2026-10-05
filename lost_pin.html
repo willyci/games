@@ -14,100 +14,125 @@ body {
   -webkit-user-select: none; user-select: none;
   -webkit-text-size-adjust: 100%;
 }
-.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
-.topbar td { padding: 6px 8px; vertical-align: middle; }
-.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
-.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
-.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
-.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.app-container {
+  width: 100%; max-width: 680px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.main-layout {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%;
+}
+.board-column {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%;
+}
+.bottom-menu {
+  display: flex; flex-direction: column; gap: 6px; width: 100%;
+}
+.action-bar-grid {
+  display: flex; flex-wrap: wrap; gap: 6px; width: 100%; justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0; min-width: 60px; margin: 0;
+}
+.match-setup-row {
+  display: flex; gap: 6px; width: 100%; justify-content: center;
+}
+.match-setup-row select.btn {
+  flex: 1 1 0; min-width: 0; margin: 0;
+}
 .btn {
   display: inline-block; box-sizing: border-box; position: relative;
-  min-width: 48px; min-height: 48px; line-height: 44px;
-  padding: 0 14px; margin: 4px;
+  min-width: 48px; min-height: 38px; line-height: 34px;
+  padding: 0 10px; margin: 2px;
   border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
   box-shadow: 2px 2px 0 #000;
-  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  font-family: Georgia, "Times New Roman", serif; font-size: 16px; font-weight: bold;
   text-decoration: none; text-align: center; vertical-align: middle;
   cursor: pointer; -webkit-appearance: none; appearance: none;
 }
 .btn:active, .btn.on { background: #000; color: #fff; }
-.btn:active { left: 2px; top: 2px; box-shadow: none; }
+.btn:active { left: 1px; top: 1px; box-shadow: none; }
 .btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
 select.btn {
-  padding: 0 36px 0 12px; text-align: left;
+  padding: 0 32px 0 10px; text-align: left;
   background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
 }
 select.btn:active { color: #000; background-color: #fff; }
 .status {
-  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
-  background: #eee; border-bottom: 2px solid #000;
+  text-align: center; font-size: 16px; line-height: 1.25; padding: 6px 10px; min-height: 22px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px; width: 100%; box-sizing: border-box;
 }
 .status.win { background: #000; color: #fff; font-weight: bold; }
-.wrap { text-align: center; padding: 14px 0 8px; }
-.controls { text-align: center; padding: 4px 8px 12px; }
+.wrap { text-align: center; padding: 4px 0; width: 100%; }
 .help {
-  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  font-size: 15px; line-height: 1.4; margin: 6px 0 16px; padding: 0 12px 10px;
   border: 2px solid #000; border-radius: 6px; overflow: hidden;
 }
-.help.closed { height: 44px; padding-bottom: 0; }
+.help.closed { height: 40px; padding-bottom: 0; }
 .help h2 {
-  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  font-size: 16px; margin: 0 -12px 6px; padding: 0 12px; height: 40px; line-height: 40px;
   border-bottom: 1px solid #000; cursor: pointer;
 }
-.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help h2:after { content: "▴"; float: right; font-size: 18px; }
 .help.closed h2:after { content: "+"; }
 /* ===== Game specific ===== */
-.entry { margin: 0 auto 10px; border-collapse: separate; border-spacing: 6px 0; }
-.entry td { width: 52px; height: 60px; border: 3px solid #000; font-size: 34px; font-weight: bold; text-align: center; }
+.entry { margin: 0 auto 6px; border-collapse: separate; border-spacing: 6px 0; }
+.entry td { width: 44px; height: 48px; border: 3px solid #000; font-size: 28px; font-weight: bold; text-align: center; }
 .entry td.cur { border-width: 5px; }
-.keypad { margin: 0 auto; border-collapse: separate; border-spacing: 6px; }
-.keypad .btn { width: 84px; height: 56px; margin: 0; font-size: 26px; line-height: 52px; }
-.log { margin: 12px auto 0; border-collapse: collapse; font-size: 22px; }
-.log td { padding: 4px 10px; border-bottom: 1px solid #999; text-align: left; }
-.log td.n { color: #555; font-size: 16px; text-align: right; }
-.log td.g { font-weight: bold; letter-spacing: 8px; font-family: "Courier New", monospace; }
+.keypad { margin: 0 auto; border-collapse: separate; border-spacing: 4px; }
+.keypad .btn { width: 72px; height: 44px; margin: 0; font-size: 22px; line-height: 40px; }
+.log { margin: 8px auto 0; border-collapse: collapse; font-size: 18px; }
+.log td { padding: 3px 8px; border-bottom: 1px solid #999; text-align: left; }
+.log td.n { color: #555; font-size: 14px; text-align: right; }
+.log td.g { font-weight: bold; letter-spacing: 6px; font-family: "Courier New", monospace; }
 .log tr.last td { border-bottom: 2px solid #000; }
-.dot { display: inline-block; width: 16px; height: 16px; border: 2px solid #000; border-radius: 50%; margin: 0 2px; vertical-align: middle; }
+.dot { display: inline-block; width: 14px; height: 14px; border: 2px solid #000; border-radius: 50%; margin: 0 2px; vertical-align: middle; }
 .dot.hit { background: #000; }
-.legend { font-size: 15px; margin-top: 6px; }
+.legend { font-size: 14px; margin-top: 4px; }
 </style>
 </head>
 <body>
-<table class="topbar"><tr>
-  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
-  <td><h1>Lost PIN</h1></td>
-  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
-</tr></table>
-<div class="status" id="status"></div>
-<div class="wrap">
-  <table class="entry"><tr id="entry"></tr></table>
-  <table class="keypad" id="keypad">
-    <tr><td><button class="btn" data-k="1">1</button></td><td><button class="btn" data-k="2">2</button></td><td><button class="btn" data-k="3">3</button></td></tr>
-    <tr><td><button class="btn" data-k="4">4</button></td><td><button class="btn" data-k="5">5</button></td><td><button class="btn" data-k="6">6</button></td></tr>
-    <tr><td><button class="btn" data-k="7">7</button></td><td><button class="btn" data-k="8">8</button></td><td><button class="btn" data-k="9">9</button></td></tr>
-    <tr><td><button class="btn" data-k="del">&#9003;</button></td><td><button class="btn" data-k="0">0</button></td><td><button class="btn" data-k="ok">OK</button></td></tr>
-  </table>
-  <div class="legend"><span class="dot hit"></span> right digit, right place &nbsp; <span class="dot"></span> right digit, wrong place</div>
-  <table class="log" id="log"></table>
-</div>
-<div class="controls">
-  <select class="btn" id="selLen">
-    <option value="3">3 digits</option>
-    <option value="4" selected>4 digits</option>
-    <option value="5">5 digits</option>
-  </select>
-  <select class="btn" id="selRep">
-    <option value="0" selected>No repeats</option>
-    <option value="1">Repeats allowed</option>
-  </select>
-  <button class="btn" id="btnGiveUp">Show PIN</button>
-</div>
-<div class="help">
-  <h2>How to play</h2>
-  A secret PIN made of digits 0&ndash;9 is hidden. Enter a guess and tap OK.
-  Each black dot means one digit is correct and in the correct position;
-  each white dot means one digit is in the PIN but in a different position.
-  Find the PIN in as few guesses as possible. With &ldquo;No repeats&rdquo;, every digit in the PIN is different.
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status"></div>
+      <div class="wrap">
+        <table class="entry"><tr id="entry"></tr></table>
+        <table class="keypad" id="keypad">
+          <tr><td><button class="btn" data-k="1">1</button></td><td><button class="btn" data-k="2">2</button></td><td><button class="btn" data-k="3">3</button></td></tr>
+          <tr><td><button class="btn" data-k="4">4</button></td><td><button class="btn" data-k="5">5</button></td><td><button class="btn" data-k="6">6</button></td></tr>
+          <tr><td><button class="btn" data-k="7">7</button></td><td><button class="btn" data-k="8">8</button></td><td><button class="btn" data-k="9">9</button></td></tr>
+          <tr><td><button class="btn" data-k="del">&#9003;</button></td><td><button class="btn" data-k="0">0</button></td><td><button class="btn" data-k="ok">OK</button></td></tr>
+        </table>
+        <div class="legend"><span class="dot hit"></span> right digit, right place &nbsp; <span class="dot"></span> right digit, wrong place</div>
+        <table class="log" id="log"></table>
+      </div>
+    </section>
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnGiveUp">Show PIN</button>
+        <button class="btn" id="btnNew">New</button>
+      </div>
+      <div class="match-setup-row">
+        <select class="btn" id="selLen">
+          <option value="3">3 digits</option>
+          <option value="4" selected>4 digits</option>
+          <option value="5">5 digits</option>
+        </select>
+        <select class="btn" id="selRep">
+          <option value="0" selected>No repeats</option>
+          <option value="1">Repeats allowed</option>
+        </select>
+      </div>
+    </section>
+  </main>
+  <div class="help">
+    <h2>How to play</h2>
+    A secret PIN made of digits 0&ndash;9 is hidden. Enter a guess and tap OK.
+    Each black dot means one digit is correct and in the correct position;
+    each white dot means one digit is in the PIN but in a different position.
+    Find the PIN in as few guesses as possible. With &ldquo;No repeats&rdquo;, every digit in the PIN is different.
+  </div>
 </div>
 <script>
 (function () {

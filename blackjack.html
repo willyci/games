@@ -9,24 +9,71 @@
 html, body { margin: 0; padding: 0; background: #fff; color: #000; }
 body {
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 18px;
+  font-size: 16px;
   -webkit-tap-highlight-color: rgba(0,0,0,0);
   -webkit-user-select: none; user-select: none;
   -webkit-text-size-adjust: 100%;
 }
-.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
-.topbar td { padding: 6px 8px; vertical-align: middle; }
-.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
-.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
-.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
-.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.app-container {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.main-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.board-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.bottom-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.action-bar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0;
+  min-width: 60px;
+  margin: 0;
+}
+.match-setup-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.match-setup-row select.btn {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
 .btn {
   display: inline-block; box-sizing: border-box; position: relative;
-  min-width: 48px; min-height: 48px; line-height: 44px;
-  padding: 0 14px; margin: 4px;
+  min-width: 44px; min-height: 40px; line-height: 36px;
+  padding: 0 10px; margin: 0;
   border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
   box-shadow: 2px 2px 0 #000;
-  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  font-family: Georgia, "Times New Roman", serif; font-size: 16px; font-weight: bold;
   text-decoration: none; text-align: center; vertical-align: middle;
   cursor: pointer; -webkit-appearance: none; appearance: none;
 }
@@ -34,92 +81,94 @@ body {
 .btn:active { left: 2px; top: 2px; box-shadow: none; }
 .btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
 select.btn {
-  padding: 0 36px 0 12px; text-align: left;
+  padding: 0 32px 0 10px; text-align: left;
   background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
 }
 select.btn:active { color: #000; background-color: #fff; }
 .status {
-  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
-  background: #eee; border-bottom: 2px solid #000;
+  text-align: center; font-size: 16px; line-height: 1.25; padding: 6px 10px; min-height: 22px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px;
+  width: 100%; box-sizing: border-box;
 }
 .status.win { background: #000; color: #fff; font-weight: bold; }
-.wrap { text-align: center; padding: 14px 0 8px; }
-.controls { text-align: center; padding: 4px 8px 12px; }
+.wrap { text-align: center; padding: 2px 0; width: 100%; }
 .help {
-  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  font-size: 15px; line-height: 1.4; margin: 4px 0 16px; padding: 0 12px 10px;
   border: 2px solid #000; border-radius: 6px; overflow: hidden;
 }
-.help.closed { height: 44px; padding-bottom: 0; }
+.help.closed { height: 40px; padding-bottom: 0; }
 .help h2 {
-  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  font-size: 16px; margin: 0 -12px 6px; padding: 0 12px; height: 40px; line-height: 40px;
   border-bottom: 1px solid #000; cursor: pointer;
 }
-.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help h2:after { content: "▴"; float: right; font-size: 18px; }
 .help.closed h2:after { content: "+"; }
 /* ===== Game specific ===== */
-.bank { font-size: 18px; padding: 6px 0 2px; }
-.label { font-size: 16px; font-weight: bold; margin: 6px 0 4px; }
-.area { min-height: 104px; padding: 2px 0 6px; }
-.hand { display: inline-block; vertical-align: top; margin: 0 6px 8px; padding: 6px 6px 2px; border: 2px dashed transparent; }
+.bank { font-size: 16px; font-weight: bold; padding: 2px 0; }
+.label { font-size: 15px; font-weight: bold; margin: 4px 0 2px; }
+.area { min-height: 92px; padding: 2px 0; }
+.hand { display: inline-block; vertical-align: top; margin: 0 4px 6px; padding: 4px 4px 2px; border: 2px dashed transparent; }
 .hand.active { border: 3px solid #000; }
-.hand .tot { font-size: 16px; margin-top: 2px; }
+.hand .tot { font-size: 15px; margin-top: 2px; }
 .card {
   display: inline-block; vertical-align: top; position: relative;
-  width: 58px; height: 84px; margin: 0 3px; box-sizing: border-box;
+  width: 54px; height: 80px; margin: 0 3px; box-sizing: border-box;
   border: 2px solid #000; border-radius: 6px; background: #fff; text-align: left;
 }
-.card .r { position: absolute; left: 5px; top: 2px; font-size: 22px; font-weight: bold; }
-.card .s { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 34px; line-height: 34px; }
+.card .r { position: absolute; left: 4px; top: 2px; font-size: 20px; font-weight: bold; }
+.card .s { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font-size: 30px; line-height: 30px; }
 .card.red .s { color: #fff; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
 .card.back { background: #888; border-color: #000; }
-.card.back span { position: absolute; left: 6px; right: 6px; top: 6px; bottom: 6px; border: 2px solid #fff; border-radius: 3px; }
-.divider { border-top: 1px solid #000; margin: 4px 24px; }
-.actions { padding: 6px 4px 2px; }
-.actions .btn { min-width: 100px; }
+.card.back span { position: absolute; left: 5px; right: 5px; top: 5px; bottom: 5px; border: 2px solid #fff; border-radius: 3px; }
+.divider { border-top: 1px solid #000; margin: 2px 24px; }
 </style>
 </head>
 <body>
-<table class="topbar"><tr>
-  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
-  <td><h1>Blackjack</h1></td>
-  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
-</tr></table>
-<div class="status" id="status"></div>
-<div class="wrap">
-  <div class="bank" id="bank"></div>
-  <div class="label">Dealer</div>
-  <div class="area" id="dealer"></div>
-  <div class="divider"></div>
-  <div class="label">You</div>
-  <div class="area" id="player"></div>
-  <div class="actions" id="playActions">
-    <button class="btn" id="btnHit">Hit</button>
-    <button class="btn" id="btnStand">Stand</button>
-    <button class="btn" id="btnDouble">Double</button>
-    <button class="btn" id="btnSplit">Split</button>
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status"></div>
+      <div class="wrap">
+        <div class="bank" id="bank"></div>
+        <div class="label">Dealer</div>
+        <div class="area" id="dealer"></div>
+        <div class="divider"></div>
+        <div class="label">You</div>
+        <div class="area" id="player"></div>
+      </div>
+    </section>
+    <section class="bottom-menu">
+      <div class="action-bar-grid" id="playActions">
+        <button class="btn" id="btnHit">Hit</button>
+        <button class="btn" id="btnStand">Stand</button>
+        <button class="btn" id="btnDouble">Double</button>
+        <button class="btn" id="btnSplit">Split</button>
+      </div>
+      <div class="match-setup-row" id="betActions">
+        <select class="btn" id="selBet">
+          <option value="5">Bet 5</option>
+          <option value="10" selected>Bet 10</option>
+          <option value="25">Bet 25</option>
+          <option value="50">Bet 50</option>
+          <option value="100">Bet 100</option>
+        </select>
+        <button class="btn" id="btnDeal" style="flex:1 1 0;">Deal</button>
+      </div>
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnReset">Reset chips</button>
+        <button class="btn" id="btnNew">New</button>
+      </div>
+    </section>
+  </main>
+  <div class="help closed">
+    <h2>How to play</h2>
+    Get closer to 21 than the dealer without going over. Number cards count their value, J/Q/K count 10,
+    and an Ace counts 11 or 1. <b>Hit</b> takes a card, <b>Stand</b> keeps your total,
+    <b>Double</b> doubles your bet for exactly one more card, and <b>Split</b> turns a pair into two hands
+    (up to 4 hands; split Aces get one card each). The dealer draws to 16 and stands on all 17s.
+    Blackjack (Ace + 10-value card on the first two cards) pays 3&nbsp;to&nbsp;2, other wins pay 1&nbsp;to&nbsp;1, ties push.
   </div>
-  <div class="actions" id="betActions">
-    <select class="btn" id="selBet">
-      <option value="5">Bet 5</option>
-      <option value="10" selected>Bet 10</option>
-      <option value="25">Bet 25</option>
-      <option value="50">Bet 50</option>
-      <option value="100">Bet 100</option>
-    </select>
-    <button class="btn" id="btnDeal">Deal</button>
-  </div>
-</div>
-<div class="controls">
-  <button class="btn" id="btnReset">Reset chips</button>
-</div>
-<div class="help">
-  <h2>How to play</h2>
-  Get closer to 21 than the dealer without going over. Number cards count their value, J/Q/K count 10,
-  and an Ace counts 11 or 1. <b>Hit</b> takes a card, <b>Stand</b> keeps your total,
-  <b>Double</b> doubles your bet for exactly one more card, and <b>Split</b> turns a pair into two hands
-  (up to 4 hands; split Aces get one card each). The dealer draws to 16 and stands on all 17s.
-  Blackjack (Ace + 10-value card on the first two cards) pays 3&nbsp;to&nbsp;2, other wins pay 1&nbsp;to&nbsp;1, ties push.
-  Six-deck shoe, reshuffled when it runs low. Your chips are saved on this device.
 </div>
 <script>
 (function () {

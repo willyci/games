@@ -9,24 +9,71 @@
 html, body { margin: 0; padding: 0; background: #fff; color: #000; }
 body {
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 18px;
+  font-size: 16px;
   -webkit-tap-highlight-color: rgba(0,0,0,0);
   -webkit-user-select: none; user-select: none;
   -webkit-text-size-adjust: 100%;
 }
-.topbar { width: 100%; border-collapse: collapse; border-bottom: 3px solid #000; }
-.topbar td { padding: 6px 8px; vertical-align: middle; }
-.topbar .tb-l { width: 1%; white-space: nowrap; text-align: left; }
-.topbar .tb-r { width: 1%; white-space: nowrap; text-align: right; }
-.topbar h1 { margin: 0; font-size: 25px; text-align: center; font-weight: bold; letter-spacing: 0.5px; }
-.topbar .btn { min-height: 44px; line-height: 40px; font-size: 17px; padding: 0 12px; }
+.app-container {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.main-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.board-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.bottom-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.action-bar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0;
+  min-width: 60px;
+  margin: 0;
+}
+.match-setup-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.match-setup-row select.btn {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
 .btn {
   display: inline-block; box-sizing: border-box; position: relative;
-  min-width: 48px; min-height: 48px; line-height: 44px;
-  padding: 0 14px; margin: 4px;
+  min-width: 44px; min-height: 40px; line-height: 36px;
+  padding: 0 10px; margin: 0;
   border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
   box-shadow: 2px 2px 0 #000;
-  font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: bold;
+  font-family: Georgia, "Times New Roman", serif; font-size: 16px; font-weight: bold;
   text-decoration: none; text-align: center; vertical-align: middle;
   cursor: pointer; -webkit-appearance: none; appearance: none;
 }
@@ -34,34 +81,34 @@ body {
 .btn:active { left: 2px; top: 2px; box-shadow: none; }
 .btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
 select.btn {
-  padding: 0 36px 0 12px; text-align: left;
+  padding: 0 32px 0 10px; text-align: left;
   background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
 }
 select.btn:active { color: #000; background-color: #fff; }
 .status {
-  text-align: center; font-size: 19px; line-height: 1.3; padding: 10px 12px; min-height: 26px;
-  background: #eee; border-bottom: 2px solid #000;
+  text-align: center; font-size: 16px; line-height: 1.25; padding: 6px 10px; min-height: 22px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px;
+  width: 100%; box-sizing: border-box;
 }
 .status.win { background: #000; color: #fff; font-weight: bold; }
-.wrap { text-align: center; padding: 14px 0 8px; }
-.controls { text-align: center; padding: 4px 8px 12px; }
+.wrap { text-align: center; padding: 2px 0; width: 100%; }
 .help {
-  font-size: 16px; line-height: 1.45; margin: 6px 12px 24px; padding: 0 14px 12px;
+  font-size: 15px; line-height: 1.4; margin: 4px 0 16px; padding: 0 12px 10px;
   border: 2px solid #000; border-radius: 6px; overflow: hidden;
 }
-.help.closed { height: 44px; padding-bottom: 0; }
+.help.closed { height: 40px; padding-bottom: 0; }
 .help h2 {
-  font-size: 18px; margin: 0 -14px 8px; padding: 0 14px; height: 44px; line-height: 44px;
+  font-size: 16px; margin: 0 -12px 6px; padding: 0 12px; height: 40px; line-height: 40px;
   border-bottom: 1px solid #000; cursor: pointer;
 }
-.help h2:after { content: "2"; float: right; font-size: 24px; }
+.help h2:after { content: "▴"; float: right; font-size: 18px; }
 .help.closed h2:after { content: "+"; }
 /* ===== Game specific ===== */
-.hint { font-size: 18px; text-align: center; padding: 4px 8px; }
-.stats { font-size: 16px; text-align: center; padding: 2px 8px 6px; color: #333; }
-table.word { border-collapse: separate; border-spacing: 10px 0; margin: 6px auto 10px; }
-table.word td { text-align: center; vertical-align: bottom; font-weight: bold; border-bottom: 4px solid #000; padding: 0; }
-table.kb { border-collapse: separate; border-spacing: 4px; margin: 0 auto; }
+.hint { font-size: 16px; text-align: center; padding: 2px 8px; }
+.stats { font-size: 15px; text-align: center; padding: 2px 8px 4px; color: #333; }
+table.word { border-collapse: separate; border-spacing: 8px 0; margin: 4px auto 8px; }
+table.word td { text-align: center; vertical-align: bottom; font-weight: bold; border-bottom: 3px solid #000; padding: 0; }
+table.kb { border-collapse: separate; border-spacing: 3px; margin: 0 auto; }
 table.kb td { padding: 0; }
 .key {
   display: block; box-sizing: border-box; margin: 0; padding: 0;
@@ -72,65 +119,72 @@ table.kb td { padding: 0; }
 .key.ok { background: #000; color: #fff; }
 .key.bad { border-style: dashed; color: #777; text-decoration: line-through; }
 .key.done { color: #777; }
-#setup { text-align: center; padding: 10px 8px; }
+#setup { text-align: center; padding: 8px 6px; }
 #setup input {
-  box-sizing: border-box; height: 48px; font-size: 22px; width: 260px; max-width: 90%;
+  box-sizing: border-box; height: 44px; font-size: 20px; width: 260px; max-width: 90%;
   border: 2px solid #000; border-radius: 0; padding: 0 8px; margin: 4px;
   font-family: Georgia, "Times New Roman", serif; -webkit-appearance: none;
 }
-#setup .lbl { font-size: 18px; margin-top: 6px; }
-#setup .err { font-size: 16px; font-weight: bold; min-height: 22px; }
+#setup .lbl { font-size: 16px; margin-top: 4px; }
+#setup .err { font-size: 15px; font-weight: bold; min-height: 20px; }
 </style>
 </head>
 <body>
-<table class="topbar"><tr>
-  <td class="tb-l"><a class="btn" href="index.html">&#8592; Games</a></td>
-  <td><h1>Hangman</h1></td>
-  <td class="tb-r"><button class="btn" id="btnNew">New</button></td>
-</tr></table>
-<div class="status" id="status"></div>
-<div id="setup" style="display:none">
-  <div class="lbl">Player 1: type a secret word (letters only, 2&ndash;16), Player 2 look away!</div>
-  <input type="password" id="secret" maxlength="16" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><br>
-  <div class="lbl">Hint for Player 2 (optional)</div>
-  <input type="text" id="secretHint" maxlength="30" autocomplete="off"><br>
-  <div class="err" id="setupErr"></div>
-  <button class="btn" id="btnStart">Start guessing</button>
-</div>
-<div class="wrap" id="game">
-  <svg id="art" width="200" height="220" viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg">
-    <g stroke="#000" stroke-width="5" fill="none" stroke-linecap="square">
-      <line x1="15" y1="210" x2="150" y2="210"/>
-      <line x1="50" y1="210" x2="50" y2="15"/>
-      <line x1="47" y1="15" x2="143" y2="15"/>
-      <line x1="50" y1="48" x2="83" y2="15"/>
-      <line x1="140" y1="15" x2="140" y2="45"/>
-      <circle id="p0" cx="140" cy="65" r="20"/>
-      <line id="p1" x1="140" y1="85" x2="140" y2="145"/>
-      <line id="p2" x1="140" y1="100" x2="110" y2="128"/>
-      <line id="p3" x1="140" y1="100" x2="170" y2="128"/>
-      <line id="p4" x1="140" y1="145" x2="115" y2="188"/>
-      <line id="p5" x1="140" y1="145" x2="165" y2="188"/>
-    </g>
-  </svg>
-  <div class="hint" id="hint"></div>
-  <table class="word" id="word"></table>
-  <div id="kb"></div>
-  <div class="stats" id="stats"></div>
-</div>
-<div class="controls">
-  <select class="btn" id="selCat"></select>
-  <select class="btn" id="selMode">
-    <option value="one" selected>One Player</option>
-    <option value="two">Two Players</option>
-  </select>
-</div>
-<div class="help">
-  <h2>How to play</h2>
-  Guess the hidden word one letter at a time by tapping the keys (or typing on a keyboard).
-  Correct letters are filled in and shown in black; wrong letters are crossed out and add a
-  part to the hangman. Six wrong guesses and the game is lost. In Two Players mode, Player 1
-  types a secret word and Player 2 guesses it.
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status"></div>
+      <div id="setup" style="display:none; width: 100%;">
+        <div class="lbl">Player 1: type a secret word (letters only, 2&ndash;16), Player 2 look away!</div>
+        <input type="password" id="secret" maxlength="16" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><br>
+        <div class="lbl">Hint for Player 2 (optional)</div>
+        <input type="text" id="secretHint" maxlength="30" autocomplete="off"><br>
+        <div class="err" id="setupErr"></div>
+        <button class="btn" id="btnStart">Start guessing</button>
+      </div>
+      <div class="wrap" id="game">
+        <svg id="art" width="200" height="220" viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg">
+          <g stroke="#000" stroke-width="5" fill="none" stroke-linecap="square">
+            <line x1="15" y1="210" x2="150" y2="210"/>
+            <line x1="50" y1="210" x2="50" y2="15"/>
+            <line x1="47" y1="15" x2="143" y2="15"/>
+            <line x1="50" y1="48" x2="83" y2="15"/>
+            <line x1="140" y1="15" x2="140" y2="45"/>
+            <circle id="p0" cx="140" cy="65" r="20"/>
+            <line id="p1" x1="140" y1="85" x2="140" y2="145"/>
+            <line id="p2" x1="140" y1="100" x2="110" y2="128"/>
+            <line id="p3" x1="140" y1="100" x2="170" y2="128"/>
+            <line id="p4" x1="140" y1="145" x2="115" y2="188"/>
+            <line id="p5" x1="140" y1="145" x2="165" y2="188"/>
+          </g>
+        </svg>
+        <div class="hint" id="hint"></div>
+        <table class="word" id="word"></table>
+        <div id="kb"></div>
+        <div class="stats" id="stats"></div>
+      </div>
+    </section>
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnNew">New</button>
+      </div>
+      <div class="match-setup-row">
+        <select class="btn" id="selCat"></select>
+        <select class="btn" id="selMode">
+          <option value="one" selected>One Player</option>
+          <option value="two">Two Players</option>
+        </select>
+      </div>
+    </section>
+  </main>
+  <div class="help closed">
+    <h2>How to play</h2>
+    Guess the hidden word one letter at a time by tapping the keys (or typing on a keyboard).
+    Correct letters are filled in and shown in black; wrong letters are crossed out and add a
+    part to the hangman. Six wrong guesses and the game is lost. In Two Players mode, Player 1
+    types a secret word and Player 2 guesses it.
+  </div>
 </div>
 <script>
 (function () {
