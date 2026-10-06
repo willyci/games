@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Akari</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.app-container {
+  width: 100%; max-width: 680px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 2px 6px; box-sizing: border-box;
+}
+.main-layout {
+  display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%;
+}
+.board-column {
+  display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%;
+}
+.bottom-menu {
+  display: flex; flex-direction: column; gap: 3px; width: 100%;
+}
+.action-bar-grid {
+  display: flex; flex-wrap: wrap; gap: 4px; width: 100%; justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0; min-width: 44px; margin: 0;
+}
+.match-setup-row {
+  display: flex; gap: 4px; width: 100%; justify-content: center;
+}
+.match-setup-row select.btn {
+  flex: 1 1 0; min-width: 0; margin: 0;
+}
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 40px; min-height: 28px; line-height: 24px;
+  padding: 0 6px; margin: 0;
+  border: 1.5px solid #000; border-radius: 5px; background: #fff; color: #000;
+  box-shadow: 1.5px 1.5px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 13px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 1px; top: 1px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 24px 0 6px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='6'%3E%3Cpath d='M8 0h8L12 6z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 14px; line-height: 1.2; padding: 3px 6px; min-height: 18px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px; width: 100%; box-sizing: border-box;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 2px 0; width: 100%; }
+.help {
+  font-size: 13px; line-height: 1.35; margin: 3px 0 6px; padding: 0 10px 6px;
+  border: 1.5px solid #000; border-radius: 5px; overflow: hidden;
+}
+.help.closed { height: 30px; padding-bottom: 0; }
+.help h2 {
+  font-size: 13px; margin: 0 -10px 4px; padding: 0 10px; height: 30px; line-height: 30px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "▴"; float: right; font-size: 15px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.board { border-collapse: collapse; margin: 0 auto; border: 3px solid #000; }
+table.board td {
+  border: 1px solid #000; padding: 0; text-align: center; vertical-align: middle;
+  cursor: pointer; background: #fff; color: #000; font-weight: normal; overflow: hidden;
+}
+table.board td.w { background: #000; color: #fff; font-weight: bold; cursor: default; }
+table.board td.wv { background: #777; color: #fff; font-weight: bold; text-decoration: underline; cursor: default; }
+table.board td.lit { background: #d4d4d4; }
+table.board td.mk { color: #666; }
+table.board td.cf { background: #000; color: #fff; }
+table.board td.bad { background: #888; color: #fff; font-weight: bold; text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status"></div>
+      <div class="wrap"><table class="board" id="board"></table></div>
+    </section>
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnUndo">Undo</button>
+        <button class="btn" id="btnRestart">Restart</button>
+        <button class="btn" id="btnCheck">Check</button>
+        <button class="btn" id="btnHint">Hint</button>
+        <button class="btn" id="btnRules">Rules</button>
+      </div>
+      <div class="match-setup-row">
+        <select class="btn" id="selSize">
+          <option value="7">7 &times; 7</option>
+          <option value="10" selected>10 &times; 10</option>
+          <option value="14">14 &times; 14</option>
+        </select>
+        <select class="btn" id="selDiff">
+          <option value="easy" selected>Easy</option>
+          <option value="hard">Hard</option>
+        </select>
+        <button class="btn" id="btnNew">New</button>
+      </div>
+    </section>
+  </main>
+  <div class="help closed" id="helpBox">
+    <h2>How to play</h2>
+    Place light bulbs (&#9679;) in the white squares so that every white square is lit.
+    A bulb lights its whole row and column until the light hits a black wall.
+    Two bulbs may never shine on each other. A wall with a number must have exactly that many bulbs
+    directly next to it (above, below, left, right); walls without numbers can have any amount.
+    Tap a square to cycle: empty &rarr; bulb &rarr; &#10005; (no bulb here) &rarr; empty.
+    Lit squares are grey. Bulbs that shine on each other are shown inverted, and a wall with too many
+    (or no room for enough) bulbs is shown grey and underlined. <b>Check</b> marks wrong bulbs and marks,
+    <b>Hint</b> places one correct bulb. Every puzzle has exactly one solution. Your game is saved automatically.
+  </div>
+</div>
+<script>
+(function () {
+  var WALL_DENS = { 7: 0.2, 10: 0.2, 14: 0.19 };
+  var TIME_CAP = 1200;
+  // Built-in fallbacks (all walls numbered): '.' white, '0'-'4' numbered wall. Solution: '*' bulb.
+  var FALLBACK = {
+    7: { g: '...3..01.3.4...1.2......0......2.0...2.1.01..1...', s: '..*#*.##*#*#*..#.#*..*..#..*..*#.#...#*#.##*.#.*.' },
+    10: { g: '....1..0.00...11......2.0......4.1.1...1..20............02..0...3.3.3......3.3...2..30...02.1..1....', s: '..*.#*.#.##..*##..*..*#.#....**#*#.#*..#.*##...*......*.##..#.*.#*#*#*....*#*#*.*#.*##...##*#.*#.*..' },
+    14: { g: '.............00..2.....0..........11..0...........20...1.3.1...3.......01...2..0.0..0..........................2..0.0..1...21.......2...2.1.0...21......1....2..00..........3.....0..00.............', s: '...*.........##..#..*..#..*....*..##*.#..*.*......##.*.#*#*#..*#*......##.*.#*.#.#..#............*......*......#*.#.#..#..*##*.....*#*..#*#.#..*##...*..#..*.#*.##....*...*.#*....#..##...*.........' }
+  };
+
+  var N = 10, diff = 'easy', grid = '', solStr = '', cells = [], bad = [], hist = [];
+  var done = false, hints = 0, msg = '', busy = false, P = null;
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var selSize = document.getElementById('selSize');
+  var selDiff = document.getElementById('selDiff');
+  var helpBox = document.getElementById('helpBox');
+  var tds = [], cache = [], cellS = 40;
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function zeros(n) { var a = [], k; for (k = 0; k < n; k++) a.push(0); return a; }
+  function shuffle(a) {
+    var k, j, t;
+    for (k = a.length - 1; k > 0; k--) { j = Math.floor(Math.random() * (k + 1)); t = a[k]; a[k] = a[j]; a[j] = t; }
+    return a;
+  }
+
+  // ---------- Puzzle structure ----------
+  // g: string of n*n chars: '.' white, '#' plain wall, '0'-'4' numbered wall.
+  function analyse(g, n) {
+    var p = { n: n, wall: [], num: [], hs: [], vs: [], segs: [], adj: [], walls: [], whites: [] }, k, r, c, id, d;
+    for (k = 0; k < n * n; k++) {
+      var ch = g.charAt(k);
+      p.wall.push(ch !== '.');
+      p.num.push(ch >= '0' && ch <= '4' ? ch.charCodeAt(0) - 48 : -1);
+      p.hs.push(-1); p.vs.push(-1);
+    }
+    for (r = 0; r < n; r++) {
+      id = -1;
+      for (c = 0; c < n; c++) {
+        k = r * n + c;
+        if (p.wall[k]) { id = -1; continue; }
+        if (id < 0) { id = p.segs.length; p.segs.push([]); }
+        p.hs[k] = id; p.segs[id].push(k);
+      }
+    }
+    for (c = 0; c < n; c++) {
+      id = -1;
+      for (r = 0; r < n; r++) {
+        k = r * n + c;
+        if (p.wall[k]) { id = -1; continue; }
+        if (id < 0) { id = p.segs.length; p.segs.push([]); }
+        p.vs[k] = id; p.segs[id].push(k);
+      }
+    }
+    for (k = 0; k < n * n; k++) {
+      p.adj.push([]);
+      if (!p.wall[k]) { p.whites.push(k); continue; }
+      if (p.num[k] >= 0) p.walls.push(k);
+      r = Math.floor(k / n); c = k % n;
+      d = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]];
+      for (id = 0; id < 4; id++) {
+        if (d[id][0] < 0 || d[id][0] >= n || d[id][1] < 0 || d[id][1] >= n) continue;
+        if (!p.wall[d[id][0] * n + d[id][1]]) p.adj[k].push(d[id][0] * n + d[id][1]);
+      }
+    }
+    return p;
+  }
+
+  // ---------- Solver ----------
+  // State S = {s: per cell 0 unknown / 1 bulb / 2 no bulb, b: per segment bulb flag}
+  function place(p, S, k) {
+    if (S.s[k] === 1) return true;
+    if (S.s[k] === 2 || S.b[p.hs[k]] || S.b[p.vs[k]]) return false;
+    S.s[k] = 1; S.b[p.hs[k]] = 1; S.b[p.vs[k]] = 1;
+    var a = p.segs[p.hs[k]], b = p.segs[p.vs[k]], i;
+    for (i = 0; i < a.length; i++) if (!S.s[a[i]]) S.s[a[i]] = 2;
+    for (i = 0; i < b.length; i++) if (!S.s[b[i]]) S.s[b[i]] = 2;
+    return true;
+  }
+
+  // Returns false on contradiction. Fills forced cells.
+  function propagate(p, S) {
+    var changed = true, i, j, k, w, a, nb, nu, need, cand, seg, x;
+    while (changed) {
+      changed = false;
+      for (i = 0; i < p.walls.length; i++) {
+        w = p.walls[i]; a = p.adj[w]; nb = 0; nu = 0; need = p.num[w];
+        for (j = 0; j < a.length; j++) { if (S.s[a[j]] === 1) nb++; else if (!S.s[a[j]]) nu++; }
+        if (nb > need || nb + nu < need) return false;
+        if (!nu) continue;
+        if (nb === need) { for (j = 0; j < a.length; j++) if (!S.s[a[j]]) S.s[a[j]] = 2; changed = true; }
+        else if (nb + nu === need) {
+          for (j = 0; j < a.length; j++) if (!S.s[a[j]] && !place(p, S, a[j])) return false;
+          changed = true;
+        }
+      }
+      for (i = 0; i < p.whites.length; i++) {
+        k = p.whites[i];
+        if (S.b[p.hs[k]] || S.b[p.vs[k]]) continue;
+        nu = 0; cand = -1;
+        for (x = 0; x < 2 && nu < 2; x++) {
+          seg = p.segs[x ? p.vs[k] : p.hs[k]];
+          for (j = 0; j < seg.length; j++) {
+            if (!S.s[seg[j]] && seg[j] !== cand) { nu++; cand = seg[j]; if (nu > 1) break; }
+          }
+        }
+        if (!nu) return false;
+        if (nu === 1) { if (!place(p, S, cand)) return false; changed = true; }
+      }
+    }
+    return true;
+  }
+
+  function copyS(S) { return { s: S.s.slice(), b: S.b.slice() }; }
+  function emptyS(p) { var n = p.n, s = zeros(n * n), k; for (k = 0; k < n * n; k++) if (p.wall[k]) s[k] = 3; return { s: s, b: zeros(p.segs.length) }; }
+
+  // Counts solutions up to limit. ctx.nodes caps the work; returns -1 if the cap was hit.
+  function countSol(p, S0, limit, ctx) {
+    var found = 0, sols = [], aborted = false;
+    function rec(S) {
+      if (aborted || found >= limit) return;
+      if (++ctx.nodes > ctx.max) { aborted = true; return; }
+      if (!propagate(p, S)) return;
+      var best = -1, bestList = null, i, j, k, x, seg, list;
+      for (i = 0; i < p.whites.length; i++) {
+        k = p.whites[i];
+        if (S.b[p.hs[k]] || S.b[p.vs[k]]) continue;
+        list = [];
+        for (x = 0; x < 2; x++) {
+          seg = p.segs[x ? p.vs[k] : p.hs[k]];
+          for (j = 0; j < seg.length; j++) if (!S.s[seg[j]] && (x === 0 || seg[j] !== k)) list.push(seg[j]);
+        }
+        if (!bestList || list.length < bestList.length) { bestList = list; best = k; if (list.length <= 2) break; }
+      }
+      if (best < 0) { found++; sols.push(S.s.slice()); return; }
+      var T = S;
+      for (i = 0; i < bestList.length; i++) {
+        var C = copyS(T);
+        if (place(p, C, bestList[i])) rec(C);
+        if (aborted || found >= limit) return;
+        if (T === S) T = copyS(S);
+        T.s[bestList[i]] = 2;
+        if (!propagate(p, T)) return;
+      }
+    }
+    rec(copyS(S0 || emptyS(p)));
+    ctx.sols = sols;
+    return aborted ? -1 : found;
+  }
+
+  // ---------- Generator ----------
+  function genOnce(n, hard, deadline) {
+    var k, m, g = [], dens = WALL_DENS[n] || 0.2, order, p, S, i, j, a, cnt, bul, ctx, c, alt, diffs, rep, walls, sol;
+    for (k = 0; k < n * n; k++) g.push('.');
+    for (k = 0; k < n * n; k++) {
+      m = n * n - 1 - k;
+      if (m < k) break;
+      if (Math.random() < dens) { g[k] = '#'; g[m] = '#'; }
+    }
+    bul = zeros(n * n);
+    for (rep = 0; rep < 12; rep++) {
+      // Complete the bulb set: a bulb on every still-unlit white square (random order) = a valid solution.
+      p = analyse(g.join(''), n);
+      if (p.whites.length < n * n * 0.6) return null;
+      S = emptyS(p);
+      for (k = 0; k < n * n; k++) if (bul[k]) place(p, S, k);
+      order = shuffle(p.whites.slice());
+      for (i = 0; i < order.length; i++) {
+        k = order[i];
+        if (!S.b[p.hs[k]] && !S.b[p.vs[k]]) { place(p, S, k); bul[k] = 1; }
+      }
+      walls = [];
+      for (k = 0; k < n * n; k++) {
+        if (!p.wall[k]) continue;
+        a = p.adj[k]; cnt = 0;
+        for (i = 0; i < a.length; i++) if (bul[a[i]]) cnt++;
+        g[k] = String(cnt); walls.push(k);
+      }
+      p = analyse(g.join(''), n);
+      ctx = { nodes: 0, max: 4000 };
+      c = countSol(p, emptyS(p), 2, ctx);
+      if (c === 1) break;
+      if (c < 0 || Date.now() > deadline) return null;
+      // Not unique: wall off a square where another solution has a bulb but ours does not.
+      alt = ctx.sols[0];
+      for (j = 0; j < ctx.sols.length; j++) {
+        for (k = 0; k < n * n; k++) if ((ctx.sols[j][k] === 1) !== (bul[k] === 1)) break;
+        if (k < n * n) { alt = ctx.sols[j]; break; }
+      }
+      diffs = [];
+      for (k = 0; k < n * n; k++) if (alt[k] === 1 && !bul[k]) diffs.push(k);
+      if (!diffs.length) return null;
+      k = diffs[Math.floor(Math.random() * diffs.length)];
+      g[k] = '#';
+      m = n * n - 1 - k;
+      if (!bul[m]) g[m] = '#';
+    }
+    if (c !== 1) return null;
+    sol = '';
+    for (k = 0; k < n * n; k++) sol += bul[k] ? '*' : (p.wall[k] ? '#' : '.');
+    if (hard) {
+      shuffle(walls);
+      for (i = 0; i < walls.length; i++) {
+        if (Date.now() > deadline) break;
+        k = walls[i]; a = g[k];
+        g[k] = '#';
+        ctx = { nodes: 0, max: 400 };
+        if (countSol(analyse(g.join(''), n), null, 2, ctx) !== 1) g[k] = a;
+      }
+    } else {
+      // Easy: hide the zero clues of walls that touch no white square (they add nothing).
+      for (i = 0; i < walls.length; i++) { k = walls[i]; if (!p.adj[k].length) g[k] = '#'; }
+    }
+    return { g: g.join(''), s: sol };
+  }
+
+  // True when plain propagation (no guessing) solves the puzzle.
+  function easySolvable(r, n) {
+    var p = analyse(r.g, n), S = emptyS(p), k;
+    if (!propagate(p, S)) return false;
+    for (k = 0; k < n * n; k++) if (!S.s[k]) return false;
+    return true;
+  }
+
+  function generate(n, hard) {
+    var deadline = Date.now() + TIME_CAP, r, tries = 0, any = null;
+    while (Date.now() < deadline) {
+      r = genOnce(n, hard, deadline);
+      tries++;
+      if (!r) continue;
+      // Easy puzzles should need no guessing; give up on that after a few tries.
+      if (hard || tries > 30 || easySolvable(r, n)) return r;
+      if (!any) any = r;
+    }
+    return any || FALLBACK[n];
+  }
+
+  // @@EXPORT
+
+  // ---------- Game ----------
+  function cellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor(Math.min((w - 24) / N, (h - 120) / N)) - 1;
+    return Math.max(30, Math.min(64, s));
+  }
+
+  function build() {
+    cellS = cellSize();
+    var s = cellS, html = '', r, c, k, fs = Math.floor(s * 0.6);
+    for (r = 0; r < N; r++) {
+      html += '<tr>';
+      for (c = 0; c < N; c++) {
+        k = r * N + c;
+        html += '<td data-i="' + k + '" style="width:' + s + 'px;height:' + s + 'px;font-size:' + fs + 'px"></td>';
+      }
+      html += '</tr>';
+    }
+    boardEl.innerHTML = html;
+    tds = boardEl.getElementsByTagName('td');
+    cache = [];
+  }
+
+  // Lighting / conflict analysis of the player's board.
+  function analysePlay() {
+    var lit = zeros(N * N), conf = zeros(N * N), segN = zeros(P.segs.length), wv = zeros(N * N), k, i, a, nb, room;
+    for (k = 0; k < N * N; k++) if (cells[k] === 1) { segN[P.hs[k]]++; segN[P.vs[k]]++; }
+    for (k = 0; k < N * N; k++) {
+      if (P.wall[k]) continue;
+      if (segN[P.hs[k]] || segN[P.vs[k]]) lit[k] = 1;
+      if (cells[k] === 1 && (segN[P.hs[k]] > 1 || segN[P.vs[k]] > 1)) conf[k] = 1;
+    }
+    for (i = 0; i < P.walls.length; i++) {
+      k = P.walls[i]; a = P.adj[k]; nb = 0; room = 0;
+      for (var j = 0; j < a.length; j++) {
+        if (cells[a[j]] === 1) nb++;
+        else if (cells[a[j]] !== 2 && !lit[a[j]]) room++;
+      }
+      if (nb > P.num[k] || nb + room < P.num[k]) wv[k] = 1;
+    }
+    return { lit: lit, conf: conf, wv: wv };
+  }
+
+  function isWin(A) {
+    var k, i, a, nb;
+    for (k = 0; k < N * N; k++) if (!P.wall[k] && (!A.lit[k] || A.conf[k])) return false;
+    for (i = 0; i < P.walls.length; i++) {
+      k = P.walls[i]; a = P.adj[k]; nb = 0;
+      for (var j = 0; j < a.length; j++) if (cells[a[j]] === 1) nb++;
+      if (nb !== P.num[k]) return false;
+    }
+    return true;
+  }
+
+  function render() {
+    var A = analysePlay(), k, cls, html, unlit = 0, bulbs = 0;
+    for (k = 0; k < N * N; k++) {
+      if (P.wall[k]) {
+        cls = A.wv[k] ? 'wv' : 'w';
+        html = P.num[k] >= 0 ? String(P.num[k]) : '';
+      } else {
+        cls = A.lit[k] ? 'lit' : '';
+        html = '';
+        if (!A.lit[k]) unlit++;
+        if (cells[k] === 1) { bulbs++; html = '&#9679;'; if (A.conf[k]) cls = 'cf'; }
+        else if (cells[k] === 2) { html = '&#10005;'; cls += ' mk'; }
+        if (bad[k] && cells[k]) cls = 'bad';
+      }
+      if (cache[k] !== cls + '|' + html) {
+        cache[k] = cls + '|' + html;
+        tds[k].className = cls;
+        tds[k].innerHTML = html;
+      }
+    }
+    document.getElementById('btnUndo').disabled = done || hist.length === 0;
+    document.getElementById('btnHint').disabled = done;
+    document.getElementById('btnCheck').disabled = done;
+    var label = N + '&times;' + N + ' ' + (diff === 'hard' ? 'Hard' : 'Easy');
+    if (done) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'Solved! ' + (hints ? '(' + hints + ' hint' + (hints === 1 ? '' : 's') + ') ' : '') + 'Tap New to play again.';
+    } else {
+      statusEl.className = 'status';
+      statusEl.innerHTML = label + ' &nbsp;&middot;&nbsp; ' + bulbs + ' bulb' + (bulbs === 1 ? '' : 's') +
+        ' &nbsp;&middot;&nbsp; ' + unlit + ' unlit' + (msg ? ' &nbsp;&middot;&nbsp; ' + msg : '');
+    }
+    msg = '';
+    return A;
+  }
+
+  function save() {
+    try {
+      store('akari.state', JSON.stringify({ n: N, d: diff, g: grid, s: solStr, v: cells.join(''), b: bad.join(''),
+        h: hist.slice(-300), done: done, hints: hints }));
+    } catch (e) {}
+  }
+
+  function strToArr(s) { var a = [], k; for (k = 0; k < s.length; k++) a.push(parseInt(s.charAt(k), 10)); return a; }
+
+  function setPuzzle(n, g, s) {
+    N = n; grid = g; solStr = s; P = analyse(g, n);
+    cells = zeros(n * n); bad = zeros(n * n); hist = []; done = false; hints = 0; msg = '';
+  }
+
+  function load() {
+    try {
+      var o = JSON.parse(store('akari.state'));
+      if (!o || !o.n || !o.g || o.g.length !== o.n * o.n || o.s.length !== o.g.length || o.v.length !== o.g.length) return false;
+      diff = o.d === 'hard' ? 'hard' : 'easy';
+      setPuzzle(o.n, o.g, o.s);
+      cells = strToArr(o.v);
+      bad = o.b && o.b.length === cells.length ? strToArr(o.b) : zeros(cells.length);
+      hist = o.h || []; done = !!o.done; hints = o.hints || 0;
+      selSize.value = String(N); selDiff.value = diff;
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function newGame() {
+    if (busy) return;
+    busy = true;
+    var n = parseInt(selSize.value, 10);
+    if (!(n === 7 || n === 10 || n === 14)) { n = 10; selSize.value = '10'; }
+    diff = selDiff.value === 'hard' ? 'hard' : 'easy';
+    store('akari.size', String(n)); store('akari.diff', diff);
+    statusEl.className = 'status';
+    statusEl.innerHTML = 'Generating&hellip;';
+    setTimeout(function () {
+      var r = generate(n, diff === 'hard');
+      setPuzzle(n, r.g, r.s);
+      busy = false;
+      build(); save(); render();
+    }, 50);
+  }
+
+  function commit(ch) {
+    if (!ch.length) return;
+    hist.push(ch);
+    if (isWin(analysePlay())) done = true;
+    save(); render();
+  }
+
+  function setCell(ch, k, v) { ch.push([k, cells[k], bad[k]]); cells[k] = v; bad[k] = 0; }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && t.tagName !== 'TD') t = t.parentNode;
+    if (!t || done || busy) return;
+    var k = parseInt(t.getAttribute('data-i'), 10);
+    if (!(k >= 0) || P.wall[k]) return;
+    var ch = [];
+    setCell(ch, k, (cells[k] + 1) % 3);
+    commit(ch);
+  };
+
+  document.getElementById('btnUndo').onclick = function () {
+    if (done || busy || !hist.length) return;
+    var ch = hist.pop(), k;
+    for (k = ch.length - 1; k >= 0; k--) { cells[ch[k][0]] = ch[k][1]; bad[ch[k][0]] = ch[k][2]; }
+    save(); render();
+  };
+
+  document.getElementById('btnRestart').onclick = function () {
+    if (busy || !P) return;
+    cells = zeros(N * N); bad = zeros(N * N); hist = []; done = false; hints = 0; msg = 'Restarted';
+    save(); render();
+  };
+
+  function wrongCells() {
+    var w = [], k;
+    for (k = 0; k < N * N; k++) {
+      if (P.wall[k]) continue;
+      if ((cells[k] === 1 && solStr.charAt(k) !== '*') || (cells[k] === 2 && solStr.charAt(k) === '*')) w.push(k);
+    }
+    return w;
+  }
+
+  document.getElementById('btnCheck').onclick = function () {
+    if (done || busy) return;
+    var w = wrongCells(), k;
+    for (k = 0; k < w.length; k++) bad[w[k]] = 1;
+    msg = w.length ? w.length + ' wrong (grey, underlined)' : 'No mistakes so far';
+    save(); render();
+  };
+
+  // Hint: remove a wrong bulb/mark, else place a bulb that follows from the correct ones (or any missing bulb).
+  document.getElementById('btnHint').onclick = function () {
+    if (done || busy) return;
+    var w = wrongCells(), ch = [], k, S, cand = [], miss = [];
+    if (w.length) {
+      k = w[Math.floor(Math.random() * w.length)];
+      setCell(ch, k, 0); hints++;
+      msg = 'Removed a wrong ' + (ch[0][1] === 1 ? 'bulb' : 'mark');
+      commit(ch);
+      return;
+    }
+    S = emptyS(P);
+    for (k = 0; k < N * N; k++) if (cells[k] === 1) place(P, S, k);
+    for (k = 0; k < N * N; k++) if (cells[k] === 2 && !S.s[k]) S.s[k] = 2;
+    if (propagate(P, S)) for (k = 0; k < N * N; k++) if (S.s[k] === 1 && cells[k] !== 1) cand.push(k);
+    for (k = 0; k < N * N; k++) if (solStr.charAt(k) === '*' && cells[k] !== 1) miss.push(k);
+    if (!cand.length) cand = miss;
+    if (!cand.length) return;
+    k = cand[Math.floor(Math.random() * cand.length)];
+    setCell(ch, k, 1); hints++;
+    msg = 'Bulb at row ' + (Math.floor(k / N) + 1) + ', column ' + (k % N + 1);
+    commit(ch);
+  };
+
+  document.getElementById('btnRules').onclick = function () {
+    helpBox.className = helpBox.className === 'help closed' ? 'help' : 'help closed';
+  };
+
+  document.getElementById('btnNew').onclick = newGame;
+  selSize.onchange = newGame;
+  selDiff.onchange = newGame;
+
+  var sz = store('akari.size'), sd = store('akari.diff');
+  if (sz === '7' || sz === '10' || sz === '14') selSize.value = sz;
+  if (sd === 'easy' || sd === 'hard') selDiff.value = sd;
+  window.onresize = function () { if (!busy && P) { build(); render(); } };
+  if (load()) { build(); render(); } else newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className.indexOf('help') === 0) setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

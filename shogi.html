@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Shogi</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.app-container {
+  width: 100%; max-width: 680px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.main-layout {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%;
+}
+.board-column {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%;
+}
+.bottom-menu {
+  display: flex; flex-direction: column; gap: 6px; width: 100%;
+}
+.action-bar-grid {
+  display: flex; flex-wrap: wrap; gap: 6px; width: 100%; justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0; min-width: 60px; margin: 0;
+}
+.match-setup-row {
+  display: flex; gap: 6px; width: 100%; justify-content: center;
+}
+.match-setup-row select.btn {
+  flex: 1 1 0; min-width: 0; margin: 0;
+}
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 38px; line-height: 34px;
+  padding: 0 10px; margin: 2px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 16px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 1px; top: 1px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 32px 0 10px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 16px; line-height: 1.25; padding: 6px 10px; min-height: 22px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px; width: 100%; box-sizing: border-box;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.status .btn { min-height: 30px; line-height: 26px; margin: 0 4px; }
+.wrap { text-align: center; padding: 2px 0; width: 100%; }
+.help {
+  font-size: 15px; line-height: 1.4; margin: 6px 0 16px; padding: 0 12px 10px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 40px; padding-bottom: 0; }
+.help h2 {
+  font-size: 16px; margin: 0 -12px 6px; padding: 0 12px; height: 40px; line-height: 40px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "▴"; float: right; font-size: 18px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.board { border-collapse: collapse; margin: 0 auto; border: 3px solid #000; }
+table.board td { padding: 0; border: 1px solid #000; cursor: pointer; }
+.cl { position: relative; overflow: hidden; }
+.ct { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+.pc { position: absolute; display: block; box-sizing: border-box; -webkit-box-sizing: border-box;
+  text-align: center; font-weight: bold; border-radius: 4px; z-index: 2; white-space: nowrap; overflow: hidden;
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", "MS Mincho", "SimSun", "Songti SC", serif; }
+.pc.w { background: #fff; color: #000; border: 2px solid #000; }
+.pc.k { background: #000; color: #fff; border: 2px solid #000;
+  -webkit-transform: rotate(180deg); transform: rotate(180deg); }
+.pc.pr { text-decoration: underline; }
+.pc.w.pr { border: 5px double #000; }
+.pc.k.pr { border: 5px double #fff; -webkit-box-shadow: 0 0 0 1px #000; box-shadow: 0 0 0 1px #000; }
+.pc.w.sel { background: #000; color: #fff; }
+.pc.k.sel { background: #fff; color: #000; }
+.box { position: absolute; display: block; box-sizing: border-box; -webkit-box-sizing: border-box; z-index: 1; }
+.box.sel { border: 4px solid #000; }
+.box.last { border: 3px dashed #000; }
+.dot { position: absolute; display: block; width: 16px; height: 16px; z-index: 3;
+  background: #000; border: 2px solid #fff; border-radius: 50%; }
+.hand { width: 100%; text-align: center; font-size: 14px; line-height: 1; }
+.hand .lbl { display: inline-block; vertical-align: middle; margin-right: 6px; font-weight: bold; }
+.hp { display: inline-block; position: relative; vertical-align: middle; margin: 0 3px; cursor: pointer; }
+.hp .pc { left: 0; top: 0; }
+.cnt { position: absolute; right: -6px; bottom: -4px; z-index: 4; display: block; min-width: 16px; height: 18px;
+  line-height: 18px; font-size: 13px; font-weight: bold; text-align: center; background: #fff; color: #000;
+  border: 1.5px solid #000; border-radius: 9px; font-family: Georgia, serif; }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status"></div>
+      <div class="hand" id="handTop"></div>
+      <div class="wrap"><table class="board" id="board"></table></div>
+      <div class="hand" id="handBot"></div>
+    </section>
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnUndo">Undo</button>
+        <button class="btn" id="btnNew">New</button>
+        <button class="btn" id="btnRules">Rules</button>
+      </div>
+      <div class="match-setup-row">
+        <select class="btn" id="selMode">
+          <option value="cpuS" selected>You: Sente</option>
+          <option value="cpuG">You: Gote</option>
+          <option value="two">Two Players</option>
+        </select>
+        <select class="btn" id="selLevel">
+          <option value="1">Easy</option>
+          <option value="2" selected>Medium</option>
+          <option value="3">Hard</option>
+        </select>
+        <select class="btn" id="selPieces">
+          <option value="kanji" selected>Pieces: Kanji</option>
+          <option value="letters">Pieces: Letters</option>
+        </select>
+      </div>
+    </section>
+  </main>
+  <div class="help" id="help">
+    <h2>How to play</h2>
+    Sente moves first. Your pieces are the white tiles at the bottom; the opponent's are black tiles, turned upside down.
+    Tap a piece, then a dotted square. To <b>drop</b> a captured piece, tap it in your hand (below the board), then an empty dotted square.<br>
+    <b>玉/王 K King</b>: one step any way.
+    <b>飛 R Rook</b>: any distance straight.
+    <b>角 B Bishop</b>: any distance diagonally.
+    <b>金 G Gold</b>: one step straight or diagonally forward.
+    <b>銀 S Silver</b>: one step diagonally or straight forward.
+    <b>桂 N Knight</b>: jumps two forward and one sideways (only forward).
+    <b>香 L Lance</b>: any distance straight forward.
+    <b>歩 P Pawn</b>: one step forward.<br>
+    <b>Promotion</b>: a move into, inside or out of the far three ranks may promote (you are asked Yes/No);
+    it is forced when the piece could otherwise never move again (pawn/lance on the last rank, knight on the last two).
+    Promoted pieces have a double border: 龍 +R Dragon (rook + one step diagonally), 馬 +B Horse (bishop + one step straight),
+    と 杏 圭 全 (+P +L +N +S) move like a Gold.<br>
+    <b>Captured pieces</b> change sides, lose their promotion and can be dropped on any empty square instead of moving, except:
+    not where they could never move; no second unpromoted pawn in a file (nifu); a pawn drop may not give immediate checkmate (uchifuzume).<br>
+    You may not leave your king in check. A player who is checkmated or has no legal move loses.
+    The same position four times is a draw (sennichite), except that a player who gave check on every move of the repetition loses (perpetual check).
+    No impasse (jishogi) rule. Undo takes back your last move.
+  </div>
+</div>
+<script>
+(function () {
+  // Pieces: 1 P, 2 L, 3 N, 4 S, 5 G, 6 B, 7 R, 8 K; promoted = type + 8 (9 +P, 10 +L, 11 +N, 12 +S, 14 Horse, 15 Dragon).
+  // Board: 81 squares, index r * 9 + c, row 0 = top (Gote's back rank). Sente pieces > 0, Gote pieces < 0.
+  var SENTE = 1, GOTE = -1, PROMO = 16384, MATE = 100000, INF = 1000000;
+  var KANJI = ['', '歩', '香', '桂', '銀', '金', '角', '飛', '玉', 'と', '杏', '圭', '全', '', '馬', '龍'];
+  var LETTER = ['', 'P', 'L', 'N', 'S', 'G', 'B', 'R', 'K', '+P', '+L', '+N', '+S', '', '+B', '+R'];
+  var VAL = [0, 100, 330, 400, 550, 620, 850, 1000, 0, 600, 600, 600, 620, 0, 1150, 1350];
+  var OVAL = [0, 100, 330, 400, 550, 620, 850, 1000, 2000, 600, 600, 600, 620, 0, 1150, 1350];
+  var HVAL = [0, 115, 370, 450, 620, 700, 960, 1130];
+  var BASE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7];
+  var DR = [-1, 1, 0, 0, -1, -1, 1, 1], DC = [0, 0, -1, 1, -1, 1, -1, 1];
+  var OPP = [1, 0, 3, 2, 7, 6, 5, 4], FLIP = [1, 0, 2, 3, 6, 7, 4, 5], FWD = [0, 1];
+  var GOLD = [0, 1, 2, 3, 4, 5];
+  var STEP_DEF = [[], [0], [], [], [0, 4, 5, 6, 7], GOLD, [], [], [0, 1, 2, 3, 4, 5, 6, 7],
+                  GOLD, GOLD, GOLD, GOLD, [], [0, 1, 2, 3], [4, 5, 6, 7]];
+  var SLIDE_DEF = [[], [], [0], [], [], [], [4, 5, 6, 7], [0, 1, 2, 3], [], [], [], [], [], [], [4, 5, 6, 7], [0, 1, 2, 3]];
+
+  // ---------- Precomputed tables ----------
+  var NB = [], ROW = [], COL = [], DIST = [], STEPS = [[], []], SLIDES = [[], []], ATK = [[], []], SLM = [[], []];
+  var KNT = [[], []], KNFROM = [[], []], ZONE = [[], []], LAST1 = [[], []], LAST2 = [[], []];
+  (function () {
+    var sq, d, r, c, rr, cc, x, t, k, a, m, s, idx, j;
+    for (sq = 0; sq < 81; sq++) {
+      r = (sq / 9) | 0; c = sq % 9; ROW.push(r); COL.push(c);
+      for (d = 0; d < 8; d++) { rr = r + DR[d]; cc = c + DC[d]; NB.push(rr >= 0 && rr < 9 && cc >= 0 && cc < 9 ? rr * 9 + cc : -1); }
+    }
+    for (sq = 0; sq < 81; sq++) for (x = 0; x < 81; x++)
+      DIST.push(Math.max(Math.abs(ROW[sq] - ROW[x]), Math.abs(COL[sq] - COL[x])));
+    for (idx = 0; idx < 2; idx++) {
+      for (t = 0; t < 16; t++) {
+        a = []; m = 0; s = 0;
+        for (k = 0; k < STEP_DEF[t].length; k++) { d = STEP_DEF[t][k]; if (idx) d = FLIP[d]; a.push(d); m |= 1 << d; }
+        STEPS[idx].push(a); a = [];
+        for (k = 0; k < SLIDE_DEF[t].length; k++) { d = SLIDE_DEF[t][k]; if (idx) d = FLIP[d]; a.push(d); m |= 1 << d; s |= 1 << d; }
+        SLIDES[idx].push(a); ATK[idx].push(m); SLM[idx].push(s);
+      }
+      for (sq = 0; sq < 81; sq++) {
+        r = ROW[sq]; c = COL[sq]; a = [];
+        rr = idx ? r + 2 : r - 2;
+        for (j = -1; j <= 1; j += 2) { cc = c + j; if (rr >= 0 && rr < 9 && cc >= 0 && cc < 9) a.push(rr * 9 + cc); }
+        KNT[idx].push(a);
+        ZONE[idx].push(idx ? r >= 6 : r <= 2);
+        LAST1[idx].push(idx ? r === 8 : r === 0);
+        LAST2[idx].push(idx ? r >= 7 : r <= 1);
+      }
+    }
+    KNFROM[0] = KNT[1]; KNFROM[1] = KNT[0];
+  })();
+
+  // ---------- Position state (shared by game and engine) ----------
+  var B = [], HD = [], KS = [76, 4];
+
+  function initPosition() {
+    var back = [2, 3, 4, 5, 8, 5, 4, 3, 2], i;
+    B = []; HD = [];
+    for (i = 0; i < 81; i++) B.push(0);
+    for (i = 0; i < 17; i++) HD.push(0);
+    for (i = 0; i < 9; i++) { B[i] = -back[i]; B[72 + i] = back[i]; B[18 + i] = -1; B[54 + i] = 1; }
+    B[10] = -7; B[16] = -6; B[64] = 6; B[70] = 7;
+    KS = [76, 4];
+  }
+
+  // Is square sq attacked by side "by"?
+  function attacked(sq, by) {
+    var bi = by > 0 ? 0 : 1, atk = ATK[bi], slm = SLM[bi], d, n, p, bit, kn, k, base = sq * 8;
+    for (d = 0; d < 8; d++) {
+      n = NB[base + d];
+      if (n < 0) continue;
+      bit = 1 << OPP[d];
+      p = B[n];
+      if (p) {
+        if (p * by > 0 && (atk[p > 0 ? p : -p] & bit)) return true;
+        continue;
+      }
+      n = NB[n * 8 + d];
+      while (n >= 0) {
+        p = B[n];
+        if (p) { if (p * by > 0 && (slm[p > 0 ? p : -p] & bit)) return true; break; }
+        n = NB[n * 8 + d];
+      }
+    }
+    kn = KNFROM[bi][sq];
+    for (k = 0; k < kn.length; k++) if (B[kn[k]] === by * 3) return true;
+    return false;
+  }
+
+  function inCheck(side) { return attacked(KS[side > 0 ? 0 : 1], -side); }
+
+  // Add a board move, with promotion choices. smart: skip pointless non-promotions (pawn, bishop, rook).
+  function addBoard(out, from, to, t, idx, smart) {
+    var m = from | (to << 7);
+    if (t < 8 && t !== 5 && (ZONE[idx][from] || ZONE[idx][to])) {
+      out.push(m | PROMO);
+      if (t <= 2 && LAST1[idx][to]) return;
+      if (t === 3 && LAST2[idx][to]) return;
+      if (smart && (t === 1 || t === 6 || t === 7)) return;
+    }
+    out.push(m);
+  }
+
+  // dropMode: 0 none, 1 all, 2 near either king, 3 next to the enemy king, 4 in line with own king (check evasion)
+  function gen(side, caps, dropMode, out, smart) {
+    var idx = side > 0 ? 0 : 1, sq, p, t, k, d, n, q, st, sl, kn;
+    for (sq = 0; sq < 81; sq++) {
+      p = B[sq];
+      if (p * side <= 0) continue;
+      t = p > 0 ? p : -p;
+      if (t === 3) {
+        kn = KNT[idx][sq];
+        for (k = 0; k < kn.length; k++) {
+          n = kn[k]; q = B[n];
+          if (q * side > 0 || (caps && !q)) continue;
+          addBoard(out, sq, n, 3, idx, smart);
+        }
+        continue;
+      }
+      st = STEPS[idx][t];
+      for (k = 0; k < st.length; k++) {
+        n = NB[sq * 8 + st[k]];
+        if (n < 0) continue;
+        q = B[n];
+        if (q * side > 0 || (caps && !q)) continue;
+        addBoard(out, sq, n, t, idx, smart);
+      }
+      sl = SLIDES[idx][t];
+      for (k = 0; k < sl.length; k++) {
+        d = sl[k]; n = NB[sq * 8 + d];
+        while (n >= 0) {
+          q = B[n];
+          if (!q) { if (!caps) addBoard(out, sq, n, t, idx, smart); }
+          else { if (q * side < 0) addBoard(out, sq, n, t, idx, smart); break; }
+          n = NB[n * 8 + d];
+        }
+      }
+    }
+    if (dropMode && !caps) genDrops(side, idx, dropMode, out);
+  }
+
+  function genDrops(side, idx, mode, out) {
+    var hb = idx * 8, t, sq, files = 0, any = false, ek = KS[1 - idx], ok = KS[idx], dr, dc, okr = ROW[ok], okc = COL[ok];
+    for (t = 1; t <= 7; t++) if (HD[hb + t]) { any = true; break; }
+    if (!any) return;
+    if (HD[hb + 1]) for (sq = 0; sq < 81; sq++) if (B[sq] === side) files |= 1 << COL[sq];
+    for (t = 7; t >= 1; t--) {
+      if (!HD[hb + t]) continue;
+      for (sq = 0; sq < 81; sq++) {
+        if (B[sq]) continue;
+        if (mode === 2) { if (DIST[sq * 81 + ek] > 2 && DIST[sq * 81 + ok] > 1) continue; }
+        else if (mode === 3) { if (DIST[sq * 81 + ek] > 1) continue; }
+        else if (mode === 4) {
+          dr = ROW[sq] - okr; dc = COL[sq] - okc;
+          if (dr !== 0 && dc !== 0 && dr !== dc && dr !== -dc) continue;
+        }
+        if (t <= 2 && LAST1[idx][sq]) continue;
+        if (t === 3 && LAST2[idx][sq]) continue;
+        if (t === 1 && (files & (1 << COL[sq]))) continue;
+        out.push((81 + t) | (sq << 7));
+      }
+    }
+  }
+
+  function make(m, side) {
+    var from = m & 127, to = (m >> 7) & 127, idx = side > 0 ? 0 : 1, p, cap;
+    if (from >= 81) { B[to] = side * (from - 81); HD[idx * 8 + from - 81]--; return 0; }
+    p = B[from]; cap = B[to];
+    if (cap) HD[idx * 8 + BASE[cap > 0 ? cap : -cap]]++;
+    B[to] = (m & PROMO) ? p + side * 8 : p;
+    B[from] = 0;
+    if (p === side * 8) KS[idx] = to;
+    return cap;
+  }
+
+  function unmake(m, side, cap) {
+    var from = m & 127, to = (m >> 7) & 127, idx = side > 0 ? 0 : 1, p;
+    if (from >= 81) { B[to] = 0; HD[idx * 8 + from - 81]++; return; }
+    p = B[to];
+    B[from] = (m & PROMO) ? p - side * 8 : p;
+    B[to] = cap;
+    if (cap) HD[idx * 8 + BASE[cap > 0 ? cap : -cap]]--;
+    if (p === side * 8) KS[idx] = from;
+  }
+
+  function hasLegalBoardMove(side) {
+    var ms = [], k, cap, ok;
+    gen(side, false, 0, ms, true);
+    for (k = 0; k < ms.length; k++) {
+      cap = make(ms[k], side); ok = !inCheck(side); unmake(ms[k], side, cap);
+      if (ok) return true;
+    }
+    return false;
+  }
+
+  // After make(): is m an illegal pawn drop giving mate (uchifuzume)?
+  // A pawn check can only be answered by a board move (capture or king move), so drops need not be tried.
+  function pawnDropMate(m, side) {
+    if ((m & 127) !== 82) return false;
+    var idx = side > 0 ? 0 : 1;
+    if (NB[((m >> 7) & 127) * 8 + FWD[idx]] !== KS[1 - idx]) return false;
+    return !hasLegalBoardMove(-side);
+  }
+
+  function legalMoves(side) {
+    var ms = [], out = [], k, m, cap, ok;
+    gen(side, false, 1, ms, false);
+    for (k = 0; k < ms.length; k++) {
+      m = ms[k]; cap = make(m, side);
+      ok = !inCheck(side) && !pawnDropMate(m, side);
+      unmake(m, side, cap);
+      if (ok) out.push(m);
+    }
+    return out;
+  }
+
+  function perft(side, depth) {
+    var ms = legalMoves(side), n = 0, k, cap;
+    if (depth <= 1) return ms.length;
+    for (k = 0; k < ms.length; k++) {
+      cap = make(ms[k], side); n += perft(-side, depth - 1); unmake(ms[k], side, cap);
+    }
+    return n;
+  }
+
+  // ---------- Computer player ----------
+  function evaluate() {   // from Sente's point of view
+    var s = 0, sq, p, t, k0 = KS[0] * 81, k1 = KS[1] * 81, dd;
+    for (sq = 0; sq < 81; sq++) {
+      p = B[sq];
+      if (!p) continue;
+      if (p > 0) {
+        s += VAL[p];
+        if (p === 8) continue;
+        if (p >= 4 && p !== 6 && p !== 7 && p < 13) { dd = DIST[k0 + sq]; if (dd <= 1) s += 22; else if (dd === 2) s += 8; }
+        if (DIST[k1 + sq] <= 2) s += p >= 14 ? 30 : 12;
+      } else {
+        t = -p;
+        s -= VAL[t];
+        if (t === 8) continue;
+        if (t >= 4 && t !== 6 && t !== 7 && t < 13) { dd = DIST[k1 + sq]; if (dd <= 1) s -= 22; else if (dd === 2) s -= 8; }
+        if (DIST[k0 + sq] <= 2) s -= t >= 14 ? 30 : 12;
+      }
+    }
+    for (t = 1; t <= 7; t++) s += (HD[t] - HD[8 + t]) * HVAL[t];
+    t = ROW[KS[0]]; if (t < 6) s -= (6 - t) * 25;
+    t = ROW[KS[1]]; if (t > 2) s += (t - 2) * 25;
+    return s;
+  }
+
+  var deadline = 0, nodes = 0, nodeCap = 0, aborted = false, killers = [], hist = [], lastDepth = 0;
+
+  function tick() {
+    nodes++;
+    if ((nodes & 255) === 0 && (nodes > nodeCap || Date.now() > deadline)) aborted = true;
+  }
+
+  function moveScore(m, first, kl) {
+    var from = m & 127, to = (m >> 7) & 127, cap, sc = 0;
+    if (m === first) return 10000000;
+    if (from < 81) {
+      cap = B[to];
+      if (cap) sc = 1000000 + OVAL[cap > 0 ? cap : -cap] * 8 - (OVAL[B[from] > 0 ? B[from] : -B[from]] >> 3);
+      if (m & PROMO) sc += 500000;
+    }
+    if (sc) return sc;
+    if (m === kl[0]) return 400000;
+    if (m === kl[1]) return 300000;
+    return hist[m & 16383];
+  }
+
+  // Full sort, best first (root). The score is packed above the 15 move bits so a numeric sort works.
+  function orderMoves(ms, first, ply) {
+    var keys = [], k, kl = killers[ply] || [0, 0], out = [];
+    for (k = 0; k < ms.length; k++) keys.push(moveScore(ms[k], first, kl) * 32768 + ms[k]);
+    keys.sort(function (a, b) { return b - a; });
+    for (k = 0; k < keys.length; k++) out.push(keys[k] % 32768);
+    return out;
+  }
+
+  function scoreAll(ms, ply) {
+    var sc = [], k, kl = killers[ply] || [0, 0];
+    for (k = 0; k < ms.length; k++) sc.push(moveScore(ms[k], -1, kl));
+    return sc;
+  }
+
+  // Lazy ordering for inner nodes: pick the best of the rest for the first three moves (most cutoffs
+  // happen there), then sort whatever is left once.
+  function pick(ms, sc, k) {
+    var n = ms.length, i, b = k, t, keys;
+    if (k < 3) {
+      for (i = k + 1; i < n; i++) if (sc[i] > sc[b]) b = i;
+      if (b !== k) { t = ms[k]; ms[k] = ms[b]; ms[b] = t; t = sc[k]; sc[k] = sc[b]; sc[b] = t; }
+    } else if (k === 3 && n > 4) {
+      keys = [];
+      for (i = 3; i < n; i++) keys.push(sc[i] * 32768 + ms[i]);
+      keys.sort(function (a, b) { return b - a; });
+      for (i = 3; i < n; i++) ms[i] = keys[i - 3] % 32768;
+    }
+    return ms[k];
+  }
+
+  function quies(side, alpha, beta, qd) {
+    tick();
+    if (aborted) return 0;
+    var stand = side * evaluate(), ms, sc, k, m, cap, val;
+    if (stand >= beta) return stand;
+    if (stand > alpha) alpha = stand;
+    if (qd >= 6) return stand;
+    ms = [];
+    gen(side, true, 0, ms, true);
+    sc = scoreAll(ms, 60);
+    for (k = 0; k < ms.length; k++) {
+      m = pick(ms, sc, k);
+      cap = make(m, side);
+      if (inCheck(side)) { unmake(m, side, cap); continue; }
+      val = -quies(-side, -beta, -alpha, qd + 1);
+      unmake(m, side, cap);
+      if (aborted) return 0;
+      if (val >= beta) return val;
+      if (val > alpha) alpha = val;
+    }
+    return alpha;
+  }
+
+  function negamax(side, depth, alpha, beta, ply) {
+    tick();
+    if (aborted) return 0;
+    var chk = inCheck(side), ms, k, m, cap, val, best = -INF, count = 0, kl, h, stage, sc;
+    if (chk && ply < 10) depth++;
+    if (depth <= 0) return quies(side, alpha, beta, 0);
+    // two stages: board moves first; drops (pruned to squares near the kings) only if no cutoff yet
+    for (stage = 0; stage < 2 && alpha < beta; stage++) {
+      ms = [];
+      if (stage === 0) gen(side, false, 0, ms, true);
+      else genDrops(side, side > 0 ? 0 : 1, chk ? 4 : (ply <= 1 ? 2 : 3), ms);
+      sc = scoreAll(ms, ply);
+      for (k = 0; k < ms.length; k++) {
+        m = pick(ms, sc, k);
+        cap = make(m, side);
+        if (inCheck(side) || pawnDropMate(m, side)) { unmake(m, side, cap); continue; }
+        count++;
+        val = -negamax(-side, depth - 1, -beta, -alpha, ply + 1);
+        unmake(m, side, cap);
+        if (aborted) return 0;
+        if (val > best) best = val;
+        if (val > alpha) alpha = val;
+        if (alpha >= beta) {
+          if (!cap && !(m & PROMO)) {
+            kl = killers[ply] || (killers[ply] = [0, 0]);
+            if (kl[0] !== m) { kl[1] = kl[0]; kl[0] = m; }
+            h = m & 16383; hist[h] = Math.min(200000, (hist[h] || 0) + depth * depth);
+          }
+          break;
+        }
+      }
+    }
+    if (!count) return chk ? -MATE + ply : side * evaluate();  // not in check: only pruned drops were left
+    return best;
+  }
+
+  // Node budgets keep the desktop worst case per move near 20/40/75 ms; the wall-clock cap protects slow e-readers.
+  var LEVELS = { 1: { depth: 2, ms: 400, nodes: 4000, noise: 40 },
+                 2: { depth: 3, ms: 800, nodes: 8000, noise: 0 },
+                 3: { depth: 5, ms: 1500, nodes: 17000, noise: 0 } };
+
+  // seen: map of position keys already reached in the game. Returning to one is scored as a draw (with a little contempt),
+  // or as a loss when it is a checking move (perpetual check loses).
+  function chooseMove(side, seen) {
+    var moves = legalMoves(side), cfg = LEVELS[level], best = moves[0], d, k, m, cap, val, bestVal, bestM, alpha, repv = {};
+    var saveB = B.slice(), saveH = HD.slice(), saveK = KS.slice();
+    if (moves.length <= 1) return best;
+    if (seen) for (k = 0; k < moves.length; k++) {
+      m = moves[k]; cap = make(m, side);
+      if (seen[B.join(',') + '/' + HD.join(',') + '/' + (-side)]) repv[m] = inCheck(-side) ? -5000 : -40;
+      unmake(m, side, cap);
+    }
+    killers = []; hist = [];
+    for (k = 0; k < 16384; k++) hist.push(0);
+    deadline = Date.now() + cfg.ms; nodes = 0; aborted = false; nodeCap = cfg.nodes;
+    for (d = 1; d <= cfg.depth; d++) {
+      moves = orderMoves(moves, best, 0);
+      bestVal = -INF; bestM = -1; alpha = -INF;
+      for (k = 0; k < moves.length; k++) {
+        m = moves[k];
+        if (repv[m] !== undefined) val = repv[m];
+        else {
+          cap = make(m, side);
+          val = -negamax(-side, d - 1, -INF, cfg.noise ? INF : -alpha, 1);
+          unmake(m, side, cap);
+          if (aborted) break;
+        }
+        if (cfg.noise) val += Math.floor(Math.random() * cfg.noise);
+        if (val > bestVal) { bestVal = val; bestM = m; }
+        if (val > alpha) alpha = val;
+      }
+      // the previous best is searched first, so even a partial iteration's best is trustworthy
+      if (bestM >= 0) best = bestM;
+      lastDepth = aborted ? d - 1 : d;
+      if (aborted || bestVal > MATE - 100 || bestVal < -MATE + 100) break;
+    }
+    B = saveB; HD = saveH; KS = saveK;
+    return best;
+  }
+
+  // ---------- Game flow ----------
+  var turn = SENTE, history = [], legal = [], sel = -1, selDrop = 0, targets = [], promo = null;
+  var lastFrom = -1, lastTo = -1, keys = [], keyChk = [], keyTurn = [];
+  var over = false, overMsg = '', thinking = false, timer = null, note = '';
+  var mode = 'cpuS', level = 2, HUMAN = SENTE, flip = false, letters = false, cells = [], S = 50;
+
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var handTop = document.getElementById('handTop');
+  var handBot = document.getElementById('handBot');
+  var selMode = document.getElementById('selMode');
+  var selLevel = document.getElementById('selLevel');
+  var selPieces = document.getElementById('selPieces');
+  var btnUndo = document.getElementById('btnUndo');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  function cellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor(Math.min((w - 24) / 9, (h - 200) / 10.7));
+    return Math.max(40, Math.min(76, s));
+  }
+
+  function sideName(s) { return s === SENTE ? 'Sente' : 'Gote'; }
+  function isCpu() { return mode !== 'two'; }
+  function posKey() { return B.join(',') + '/' + HD.join(',') + '/' + turn; }
+  function snapshot() {
+    return { b: B.slice(), h: HD.slice(), ks: KS.slice(), turn: turn, lf: lastFrom, lt: lastTo, nk: keys.length };
+  }
+
+  // Fourth occurrence of a position: draw, unless one side checked on every move since the first occurrence.
+  function repetition() {
+    var n = keys.length - 1, key = keys[n], first = -1, reps = 0, k, sChk = true, gChk = true;
+    for (k = 0; k <= n; k++) if (keys[k] === key) { reps++; if (first < 0) first = k; }
+    if (reps < 4) return 0;
+    for (k = first + 1; k <= n; k++) {
+      // position k arose from a move by -keyTurn[k]
+      if (keyTurn[k] === GOTE && !keyChk[k]) sChk = false;
+      if (keyTurn[k] === SENTE && !keyChk[k]) gChk = false;
+    }
+    if (sChk && !gChk) return 2;   // Sente checked perpetually: Sente loses
+    if (gChk && !sChk) return 3;
+    return 1;
+  }
+
+  function winText(winner, how) {
+    if (isCpu()) return how + (winner === HUMAN ? 'You win!' : 'Computer wins.');
+    return how + sideName(winner) + ' wins!';
+  }
+
+  function startTurn() {
+    var rep, chk = inCheck(turn);
+    legal = legalMoves(turn);
+    sel = -1; selDrop = 0; targets = []; promo = null;
+    keys.push(posKey()); keyChk.push(chk); keyTurn.push(turn);
+    rep = repetition();
+    if (!legal.length) {
+      over = true;
+      overMsg = winText(-turn, chk ? 'Checkmate! ' : 'No legal move! ');
+    } else if (rep === 1) {
+      over = true; overMsg = 'Draw by repetition (sennichite).';
+    } else if (rep > 1) {
+      over = true; overMsg = winText(rep === 2 ? GOTE : SENTE, 'Perpetual check! ');
+    }
+    if (over) overMsg += ' Tap New to play again.';
+    render();
+    if (!over && isCpu() && turn !== HUMAN) computerTurn();
+  }
+
+  function doMove(m) {
+    history.push(snapshot());
+    var from = m & 127, to = (m >> 7) & 127;
+    make(m, turn);
+    lastFrom = from < 81 ? from : -1; lastTo = to;
+    turn = -turn; note = '';
+    startTurn();
+  }
+
+  function computerTurn() {
+    thinking = true;
+    render();
+    timer = setTimeout(function () {
+      timer = null;
+      var seen = {}, k;
+      for (k = 0; k < keys.length; k++) seen[keys[k]] = 1;
+      var m = chooseMove(turn, seen);
+      thinking = false;
+      doMove(m);
+    }, 50);
+  }
+
+  function newGame() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    mode = selMode.value; level = parseInt(selLevel.value, 10);
+    HUMAN = mode === 'cpuG' ? GOTE : SENTE; flip = mode === 'cpuG';
+    initPosition(); turn = SENTE; history = []; keys = []; keyChk = []; keyTurn = [];
+    lastFrom = -1; lastTo = -1;
+    over = false; overMsg = ''; thinking = false; note = '';
+    build(); startTurn();
+  }
+
+  function undo() {
+    if (!history.length) return;
+    if (timer) { clearTimeout(timer); timer = null; }
+    thinking = false;
+    var s = history.pop();
+    while (isCpu() && s.turn !== HUMAN && history.length) s = history.pop();
+    if (isCpu() && s.turn !== HUMAN) { history.push(s); return; }
+    B = s.b; HD = s.h; KS = s.ks; turn = s.turn; lastFrom = s.lf; lastTo = s.lt;
+    keys.length = s.nk; keyChk.length = s.nk; keyTurn.length = s.nk;
+    over = false; overMsg = ''; note = '';
+    startTurn();
+  }
+
+  // ---------- Display ----------
+  function build() {
+    var s = cellSize(), html = '', r, c, v, sq;
+    S = s;
+    for (r = 0; r < 9; r++) {
+      html += '<tr>';
+      for (c = 0; c < 9; c++) {
+        v = r * 9 + c; sq = flip ? 80 - v : v;
+        html += '<td data-i="' + sq + '"><div class="cl" style="width:' + s + 'px;height:' + s + 'px">' +
+          '<span class="ct" id="sg' + sq + '"></span></div></td>';
+      }
+      html += '</tr>';
+    }
+    boardEl.innerHTML = html;
+    cells = [];
+    for (sq = 0; sq < 81; sq++) cells.push(document.getElementById('sg' + sq));
+  }
+
+  function contains(a, x) { var i; for (i = 0; i < a.length; i++) if (a[i] === x) return true; return false; }
+
+  // Piece tile HTML. owner: +1/-1; t: type; d: tile size; x, y: offset; isSel: inverted.
+  function tile(owner, t, d, x, y, isSel) {
+    var bottom = flip ? GOTE : SENTE, txt, fs, cls = 'pc ' + (owner === bottom ? 'w' : 'k');
+    if (t > 8) cls += ' pr';
+    if (isSel) cls += ' sel';
+    if (letters) { txt = LETTER[t]; fs = Math.floor(d * (txt.length > 1 ? 0.46 : 0.6)); }
+    else { txt = t === 8 && owner === GOTE ? '王' : KANJI[t]; fs = Math.floor(d * 0.62); }
+    return '<span class="' + cls + '" style="left:' + x + 'px;top:' + y + 'px;width:' + d + 'px;height:' + d +
+      'px;font-size:' + fs + 'px;line-height:' + (d - (t > 8 ? 10 : 4)) + 'px">' + txt + '</span>';
+  }
+
+  var HAND_ORDER = [7, 6, 5, 4, 3, 2, 1];
+  function renderHand(el, side) {
+    var idx = side > 0 ? 0 : 1, hs = Math.max(34, Math.floor(S * 0.8)), html = '', k, t, n, mine;
+    mine = !over && !thinking && turn === side && (!isCpu() || side === HUMAN);
+    html += '<span class="lbl">' + sideName(side) + (isCpu() ? (side === HUMAN ? ' (you)' : ' (CPU)') : '') + ':</span>';
+    for (k = 0; k < 7; k++) {
+      t = HAND_ORDER[k]; n = HD[idx * 8 + t];
+      if (!n) continue;
+      html += '<span class="hp" data-h="' + (mine ? t : 0) + '" style="width:' + hs + 'px;height:' + hs + 'px">' +
+        tile(side, t, hs, 0, 0, mine && selDrop === t) + (n > 1 ? '<b class="cnt">' + n + '</b>' : '') + '</span>';
+    }
+    if (html.indexOf('class="hp"') < 0) html += '<span class="hp" style="height:' + hs + 'px;line-height:' + hs + 'px">&mdash;</span>';
+    el.innerHTML = html;
+  }
+
+  function render() {
+    var s = S, d = s - 6, i, v, html, bs = s, half = Math.floor(s / 2);
+    var boxStyle = 'left:0;top:0;width:' + bs + 'px;height:' + bs + 'px';
+    for (i = 0; i < 81; i++) {
+      v = B[i]; html = '';
+      if (i === sel) html += '<b class="box sel" style="' + boxStyle + '"></b>';
+      else if (i === lastFrom || i === lastTo) html += '<b class="box last" style="' + boxStyle + '"></b>';
+      if (v) html += tile(v > 0 ? SENTE : GOTE, v > 0 ? v : -v, d, 3, 3, i === sel);
+      if (contains(targets, i)) {
+        if (v) html += '<b class="dot" style="left:' + (s - 18) + 'px;top:0"></b>';
+        else html += '<b class="dot" style="left:' + (half - 10) + 'px;top:' + (half - 10) + 'px"></b>';
+      }
+      cells[i].innerHTML = html;
+    }
+    renderHand(handTop, flip ? SENTE : GOTE);
+    renderHand(handBot, flip ? GOTE : SENTE);
+
+    if (over) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = overMsg;
+    } else {
+      statusEl.className = 'status';
+      var msg;
+      if (thinking) msg = 'Thinking&hellip;';
+      else if (promo) msg = 'Promote? <button class="btn" id="pYes">Yes</button><button class="btn" id="pNo">No</button>';
+      else {
+        msg = isCpu() ? 'Your move (' + sideName(HUMAN) + ')' : sideName(turn) + ' to move';
+        if (inCheck(turn)) msg = '<b>Check!</b> &middot; ' + msg;
+        if (note) msg += ' &middot; ' + note;
+      }
+      statusEl.innerHTML = msg;
+    }
+    btnUndo.disabled = !history.length || (isCpu() && history.length === 1 && history[0].turn !== HUMAN);
+  }
+
+  function selectFrom(from) {
+    var k, m;
+    targets = [];
+    for (k = 0; k < legal.length; k++) {
+      m = legal[k];
+      if ((m & 127) === from && !contains(targets, (m >> 7) & 127)) targets.push((m >> 7) & 127);
+    }
+  }
+
+  function humanTurn() { return !over && !thinking && !(isCpu() && turn !== HUMAN); }
+
+  function tryMove(to) {
+    var from = sel >= 0 ? sel : 81 + selDrop, k, m, plain = -1, pro = -1;
+    for (k = 0; k < legal.length; k++) {
+      m = legal[k];
+      if ((m & 127) !== from || ((m >> 7) & 127) !== to) continue;
+      if (m & PROMO) pro = m; else plain = m;
+    }
+    if (pro >= 0 && plain >= 0) { promo = [pro, plain]; render(); }
+    else doMove(pro >= 0 ? pro : plain);
+  }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && t.tagName !== 'TD') t = t.parentNode;
+    if (!t || !humanTurn()) return;
+    var i = parseInt(t.getAttribute('data-i'), 10);
+    note = '';
+    if (promo) { promo = null; sel = -1; selDrop = 0; targets = []; render(); return; }
+    if ((sel >= 0 || selDrop) && contains(targets, i)) { tryMove(i); return; }
+    selDrop = 0;
+    if (B[i] * turn > 0 && i !== sel) {
+      sel = i; selectFrom(i);
+      if (!targets.length) note = 'that piece cannot move';
+    } else { sel = -1; targets = []; }
+    render();
+  };
+
+  function handClick(e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement, h;
+    while (t && !(t.getAttribute && t.getAttribute('data-h'))) t = t.parentNode;
+    if (!t || !humanTurn()) return;
+    h = parseInt(t.getAttribute('data-h'), 10);
+    if (!h) return;
+    note = ''; promo = null; sel = -1;
+    if (selDrop === h) { selDrop = 0; targets = []; }
+    else {
+      selDrop = h; selectFrom(81 + h);
+      if (!targets.length) note = 'no legal drop';
+    }
+    render();
+  }
+  handTop.onclick = handClick;
+  handBot.onclick = handClick;
+
+  statusEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement, p = promo;
+    if (!p || !t || (t.id !== 'pYes' && t.id !== 'pNo')) return;
+    promo = null;
+    doMove(t.id === 'pYes' ? p[0] : p[1]);
+  };
+
+  btnUndo.onclick = undo;
+  document.getElementById('btnNew').onclick = newGame;
+  document.getElementById('btnRules').onclick = function () {
+    var h = document.getElementById('help');
+    h.className = h.className === 'help' ? 'help closed' : 'help';
+    if (h.className === 'help' && h.scrollIntoView) h.scrollIntoView();
+  };
+  selMode.onchange = function () { store('shogi.mode', selMode.value); newGame(); };
+  selLevel.onchange = function () { level = parseInt(selLevel.value, 10); store('shogi.level', selLevel.value); };
+  selPieces.onchange = function () { letters = selPieces.value === 'letters'; store('shogi.pieces', selPieces.value); render(); };
+
+  if (window.__shogiTest) window.__shogiTest = {
+    initPosition: initPosition, legalMoves: legalMoves, perft: perft, inCheck: inCheck, evaluate: evaluate,
+    chooseMove: chooseMove, make: make, unmake: unmake, setLevel: function (l) { level = l; }, levels: LEVELS,
+    get: function () { return { B: B, HD: HD, KS: KS }; },
+    set: function (b, h, ks) { B = b; HD = h; KS = ks; }, startTurn: startTurn, stats: function () { return { nodes: nodes, depth: lastDepth }; }
+  };
+
+  var sm = store('shogi.mode'), sl = store('shogi.level'), sp = store('shogi.pieces');
+  if (sm === 'cpuS' || sm === 'cpuG' || sm === 'two') selMode.value = sm;
+  if (sl === '1' || sl === '2' || sl === '3') selLevel.value = sl;
+  if (sp === 'kanji' || sp === 'letters') selPieces.value = sp;
+  letters = selPieces.value === 'letters';
+  newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

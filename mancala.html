@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mancala</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.app-container {
+  width: 100%; max-width: 680px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.main-layout {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%;
+}
+.board-column {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%;
+}
+.bottom-menu {
+  display: flex; flex-direction: column; gap: 6px; width: 100%;
+}
+.action-bar-grid {
+  display: flex; flex-wrap: wrap; gap: 6px; width: 100%; justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0; min-width: 60px; margin: 0;
+}
+.match-setup-row {
+  display: flex; gap: 6px; width: 100%; justify-content: center;
+}
+.match-setup-row select.btn {
+  flex: 1 1 0; min-width: 0; margin: 0;
+}
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 38px; line-height: 34px;
+  padding: 0 10px; margin: 2px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 16px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 1px; top: 1px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 32px 0 10px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 16px; line-height: 1.25; padding: 6px 10px; min-height: 22px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px; width: 100%; box-sizing: border-box;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 6px 0 4px; width: 100%; }
+.help {
+  font-size: 15px; line-height: 1.4; margin: 6px 0 16px; padding: 0 12px 10px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 40px; padding-bottom: 0; }
+.help h2 {
+  font-size: 16px; margin: 0 -12px 6px; padding: 0 12px; height: 40px; line-height: 40px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "▴"; float: right; font-size: 18px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.mb { border-collapse: separate; border-spacing: 4px; margin: 0 auto; border: 3px solid #000; border-radius: 10px; }
+table.mb td { padding: 0; text-align: center; vertical-align: middle; font-family: Arial, Helvetica, sans-serif; }
+table.mb td.lab { font-size: 16px; height: 22px; line-height: 20px; color: #000; }
+table.mb td.lab span { display: inline-block; min-width: 22px; padding: 0 3px; border-radius: 3px; }
+table.mb td.lab span.last { background: #000; color: #fff; font-weight: bold; }
+.pit, .store {
+  -webkit-box-sizing: border-box; box-sizing: border-box; margin: 0 auto;
+  border: 2px solid #888; background: #eee; overflow: hidden;
+}
+.pit { -webkit-border-radius: 40%; border-radius: 40%; cursor: default; }
+.pit.go { border: 4px solid #000; background: #fff; cursor: pointer; }
+.store { -webkit-border-radius: 18px; border-radius: 18px; border: 3px solid #000; background: #fff; }
+.num { font-weight: bold; display: block; line-height: 1.1; }
+.cap { font-size: 12px; display: block; line-height: 1.2; font-family: Georgia, "Times New Roman", serif; }
+.dots { display: block; line-height: 8px; margin: 2px 4px 0; }
+.dot {
+  display: inline-block; width: 7px; height: 7px; margin: 0 1px 1px 0; background: #000;
+  -webkit-border-radius: 50%; border-radius: 50%;
+}
+</style>
+</head>
+<body>
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status"></div>
+      <div class="wrap"><table class="mb" id="board"></table></div>
+    </section>
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnUndo">Undo</button>
+        <button class="btn" id="btnNew">New</button>
+      </div>
+      <div class="match-setup-row">
+        <select class="btn" id="selMode">
+          <option value="h" selected>You first</option>
+          <option value="c">Computer first</option>
+          <option value="2">Two Players</option>
+        </select>
+        <select class="btn" id="selLevel">
+          <option value="1">Easy</option>
+          <option value="2" selected>Medium</option>
+          <option value="3">Hard</option>
+        </select>
+        <select class="btn" id="selSeeds">
+          <option value="3">3 seeds</option>
+          <option value="4" selected>4 seeds</option>
+          <option value="5">5 seeds</option>
+          <option value="6">6 seeds</option>
+        </select>
+      </div>
+    </section>
+  </main>
+  <div class="help">
+    <h2>How to play</h2>
+    Mancala (Kalah rules). Each player owns the six pits on their side and the store on their
+    right: you play the <b>bottom row</b> and your store is on the right; the computer (or North, in
+    two-player games) plays the top row with its store on the left. Each pit starts with 4 seeds
+    (choose 3&ndash;6 with the seeds menu).<br>
+    On your turn tap one of your pits that has seeds (framed in black). All its seeds are sown one by one
+    counter-clockwise &mdash; to the right along your row, into your store, then along the opponent's row.
+    The opponent's store is skipped.<br>
+    <b>Extra turn:</b> if your last seed drops into your own store, you move again.<br>
+    <b>Capture:</b> if your last seed lands in an empty pit on your side and the pit directly opposite
+    holds seeds, that seed and all the opposite seeds go into your store. If the opposite pit
+    is empty, nothing is captured.<br>
+    <b>End:</b> as soon as all six pits on either side are empty the game ends, and each player adds
+    the seeds left on their own side to their store. Most seeds in the store wins.<br>
+    Each side numbers its pits 1&ndash;6 in the direction its seeds travel: yours from left to right,
+    the computer's from right to left along the top. The number of the pit played last is shown in black.
+  </div>
+</div>
+<script>
+(function () {
+  // s[0..5] = South (bottom) pits left to right, s[6] = South store (right),
+  // s[7..12] = North (top) pits right to left, s[13] = North store (left).
+  var SOUTH = 0, NORTH = 1, WIN = 10000;
+  var st, turn, last, history, over, busy, token = 0, mode, level, seeds, curParts, lastTurn;
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var selMode = document.getElementById('selMode');
+  var selLevel = document.getElementById('selLevel');
+  var selSeeds = document.getElementById('selSeeds');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function now() { return new Date().getTime(); }
+
+  function cellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor((Math.min(w, 680) - 70) / 8);
+    s = Math.min(s, Math.floor((h - 300) / 2.6));
+    return Math.max(44, Math.min(90, s));
+  }
+
+  // ---------- rules ----------
+  function newBoard(n) { var s = [], k; for (k = 0; k < 14; k++) s.push(k === 6 || k === 13 ? 0 : n); return s; }
+  function storeOf(p) { return p ? 13 : 6; }
+  function legal(s, p) { var out = [], k; for (k = 0; k < 6; k++) if (s[p * 7 + k]) out.push(p * 7 + k); return out; }
+  // Sow from pit i for player p (modifies s); sets lastExtra, lastCap, lastEnd.
+  var lastExtra = false, lastCap = 0, lastEnd = false;
+  function sow(s, p, i) {
+    var n = s[i], pos = i, skip = p ? 6 : 13, home = p ? 13 : 6, lo = p * 7, a, b, k;
+    s[i] = 0;
+    while (n > 0) { pos++; if (pos === 14) pos = 0; if (pos === skip) continue; s[pos]++; n--; }
+    lastExtra = pos === home; lastCap = 0;
+    if (!lastExtra && pos >= lo && pos < lo + 6 && s[pos] === 1 && s[12 - pos] > 0) {
+      lastCap = s[12 - pos] + 1;
+      s[home] += lastCap; s[pos] = 0; s[12 - pos] = 0;
+    }
+    a = 0; b = 0;
+    for (k = 0; k < 6; k++) { a += s[k]; b += s[7 + k]; }
+    lastEnd = a === 0 || b === 0;
+    if (lastEnd) {
+      s[6] += a; s[13] += b;
+      for (k = 0; k < 6; k++) { s[k] = 0; s[7 + k] = 0; }
+      lastExtra = false;
+    }
+    return pos;
+  }
+
+  // ---------- AI ----------
+  var deadline = 0, nodes = 0, aborted = false;
+  // moves ordered: extra-turn moves first (nearest the store first), then the rest from the right
+  function ordered(s, p) {
+    var out = [], rest = [], k, i;
+    for (k = 5; k >= 0; k--) {
+      i = p * 7 + k;
+      if (!s[i]) continue;
+      if (s[i] === 6 - k) out.push(i); else rest.push(i);
+    }
+    for (k = 0; k < rest.length; k++) out.push(rest[k]);
+    return out;
+  }
+  function terminal(s, p) {
+    var d = s[storeOf(p)] - s[storeOf(1 - p)];
+    return d > 0 ? WIN + d : d < 0 ? d - WIN : 0;
+  }
+  // value of s for p, who is to move; an extra turn means p searches on (no sign flip)
+  function search(s, p, depth, alpha, beta) {
+    if ((++nodes & 1023) === 0 && deadline && now() > deadline) aborted = true;
+    if (aborted) return 0;
+    if (depth <= 0) return s[storeOf(p)] - s[storeOf(1 - p)];
+    var ms = ordered(s, p), j, c, v, best = -Infinity;
+    for (j = 0; j < ms.length; j++) {
+      c = s.slice();
+      sow(c, p, ms[j]);
+      if (lastEnd) v = terminal(c, p);
+      else if (lastExtra) v = search(c, p, depth - 1, alpha, beta);
+      else v = -search(c, 1 - p, depth - 1, -beta, -alpha);
+      if (aborted) return 0;
+      if (v > best) { best = v; if (v > alpha) { alpha = v; if (alpha >= beta) break; } }
+    }
+    return best;
+  }
+  function rootSearch(s, p, depth, ms) {
+    var j, c, v, best = -1, bestV = -Infinity, alpha = -Infinity;
+    for (j = 0; j < ms.length; j++) {
+      c = s.slice();
+      sow(c, p, ms[j]);
+      if (lastEnd) v = terminal(c, p);
+      else if (lastExtra) v = search(c, p, depth - 1, alpha, Infinity);
+      else v = -search(c, 1 - p, depth - 1, -Infinity, -alpha);
+      if (aborted) return null;
+      if (v > bestV) { bestV = v; best = ms[j]; }
+      if (bestV > alpha) alpha = bestV;
+    }
+    return { m: best, score: bestV };
+  }
+
+  function shuffle(a) {
+    for (var x = a.length - 1; x > 0; x--) { var y = Math.floor(Math.random() * (x + 1)), t = a[x]; a[x] = a[y]; a[y] = t; }
+    return a;
+  }
+  var MAXD = [0, 0, 4, 10], CAP = [0, 0, 500, 1500];
+  function chooseMove(s, p) {
+    var ms = ordered(s, p), j, d, res, best, c, ex = [], caps = [];
+    if (!ms.length) return -1;
+    if (ms.length === 1) return ms[0];
+    if (level === 1) {
+      for (j = 0; j < ms.length; j++) {
+        c = s.slice(); sow(c, p, ms[j]);
+        if (lastExtra) ex.push(ms[j]); else if (lastCap) caps.push(ms[j]);
+      }
+      if (ex.length && Math.random() < 0.6) return ex[0];
+      if (caps.length && Math.random() < 0.4) return caps[Math.floor(Math.random() * caps.length)];
+      return ms[Math.floor(Math.random() * ms.length)];
+    }
+    if (level === 2) shuffle(ms);                       // vary Medium's play between games
+    best = ms[0]; aborted = false; nodes = 0;
+    deadline = now() + CAP[level];
+    for (d = 1; d <= MAXD[level]; d++) {
+      res = rootSearch(s, p, d, ms);
+      if (!res) break;
+      best = res.m;
+      if (res.score > WIN || res.score < -WIN) break;    // result is decided
+      for (j = 0; j < ms.length; j++) if (ms[j] === best) { ms.splice(j, 1); ms.unshift(best); break; }
+    }
+    deadline = 0;
+    return best;
+  }
+
+  // ---------- game flow ----------
+  function isHuman(p) { return mode === '2' || p === SOUTH; }
+  function name(p) { return mode === '2' ? (p === SOUTH ? 'South' : 'North') : (p === SOUTH ? 'You' : 'Computer'); }
+  function label(i) { return i < 7 ? i + 1 : i - 6; }
+
+  function newGame() {
+    token++;
+    mode = selMode.value;
+    level = parseInt(selLevel.value, 10);
+    seeds = parseInt(selSeeds.value, 10) || 4;
+    store('mancala.mode', mode);
+    store('mancala.seeds', String(seeds));
+    st = newBoard(seeds);
+    turn = mode === 'c' ? NORTH : SOUTH;
+    last = -1; history = []; over = false; busy = false; curParts = []; lastTurn = null;
+    build();
+    render();
+    maybeComputer();
+  }
+
+  function play(i) {
+    history.push({ s: st.slice(), t: turn, last: last, parts: curParts.slice(), lt: lastTurn });
+    sow(st, turn, i);
+    last = i;
+    var part = 'pit ' + label(i);
+    if (lastCap) part += ' and captured ' + lastCap;
+    if (lastExtra) part += ', extra turn';
+    curParts.push(part);
+    if (lastEnd) over = true;
+    else if (!lastExtra) { lastTurn = { p: turn, parts: curParts }; curParts = []; turn = 1 - turn; }
+    render();
+    maybeComputer();
+  }
+
+  function maybeComputer() {
+    if (over || isHuman(turn)) return;
+    busy = true;
+    render();
+    var my = token;
+    setTimeout(function () {
+      if (my !== token) return;
+      var m = chooseMove(st.slice(), turn);
+      busy = false;
+      if (m >= 0) play(m); else render();
+    }, 50);
+  }
+
+  function labRow(idx) {
+    var h = '<tr><td></td>', k;
+    for (k = 0; k < 6; k++) h += '<td class="lab" id="l' + idx[k] + '"></td>';
+    return h + '<td></td></tr>';
+  }
+  function build() {
+    var s = cellSize(), ph = Math.floor(s * 1.3), html = '', i;
+    function pitCell(i) {
+      return '<td data-i="' + i + '" style="width:' + s + 'px"><div class="pit" id="p' + i + '" style="width:' + s + 'px;height:' + ph + 'px"></div></td>';
+    }
+    function stCell(i) {
+      return '<td rowspan="2" style="width:' + s + 'px"><div class="store" id="p' + i + '" style="width:' + s + 'px;height:' + (ph * 2 + 4) + 'px"></div></td>';
+    }
+    html += labRow([12, 11, 10, 9, 8, 7]);
+    html += '<tr>' + stCell(13);
+    for (i = 12; i >= 7; i--) html += pitCell(i);
+    html += stCell(6) + '</tr><tr>';
+    for (i = 0; i < 6; i++) html += pitCell(i);
+    html += '</tr>' + labRow([0, 1, 2, 3, 4, 5]);
+    boardEl.innerHTML = html;
+  }
+
+  function pitHtml(n, s, isStore, cap) {
+    var h = '', k, fs = Math.floor(s * (isStore ? 0.5 : 0.42));
+    if (isStore) h += '<span class="cap" style="padding-top:' + Math.max(4, Math.floor(s * 1.3) - fs) + 'px">' + cap + '</span>';
+    else h += '<span style="display:block;height:' + Math.floor(s * 0.2) + 'px"></span>';
+    h += '<span class="num" style="font-size:' + fs + 'px">' + n + '</span>';
+    if (!isStore && n > 0 && n <= 12) {
+      h += '<span class="dots">';
+      for (k = 0; k < n; k++) h += '<span class="dot"></span>';
+      h += '</span>';
+    }
+    return h;
+  }
+
+  function describe(p, parts) {
+    return name(p) + ' played ' + parts.join(', then ') + '.';
+  }
+
+  function render() {
+    var s = cellSize(), i, el, playable = {}, ms;
+    if (!over && !busy && isHuman(turn)) { ms = legal(st, turn); for (i = 0; i < ms.length; i++) playable[ms[i]] = true; }
+    for (i = 0; i < 14; i++) {
+      el = document.getElementById('p' + i);
+      if (i === 6 || i === 13) {
+        el.innerHTML = pitHtml(st[i], s, true, name(i === 6 ? SOUTH : NORTH));
+        continue;
+      }
+      el.className = 'pit' + (playable[i] ? ' go' : '');
+      el.innerHTML = pitHtml(st[i], s, false);
+      document.getElementById('l' + i).innerHTML = '<span' + (i === last ? ' class="last"' : '') + '>' + label(i) + '</span>';
+    }
+    var msg, a, b;
+    if (over) {
+      statusEl.className = 'status win';
+      a = st[6]; b = st[13];
+      msg = curParts.length ? describe(turn, curParts) + ' ' : '';
+      if (a === b) msg += 'Draw, ' + a + '&ndash;' + b + '!';
+      else if (mode === '2') msg += (a > b ? 'South' : 'North') + ' wins ' + Math.max(a, b) + '&ndash;' + Math.min(a, b) + '!';
+      else msg += (a > b ? 'You win ' : 'Computer wins ') + Math.max(a, b) + '&ndash;' + Math.min(a, b) + (a > b ? '!' : '.');
+      msg += ' Tap New to play again.';
+    } else {
+      statusEl.className = 'status';
+      if (busy) msg = 'Thinking&hellip;';
+      else {
+        msg = '';
+        if (curParts.length) msg = describe(turn, curParts) + (mode === '2' ? ' ' + name(turn) + ' moves again.' : ' Move again.');
+        else {
+          if (lastTurn && (mode === '2' || !isHuman(lastTurn.p))) msg = describe(lastTurn.p, lastTurn.parts) + ' ';
+          msg += mode === '2' ? name(turn) + ' to move.' : 'Your move.';
+        }
+      }
+    }
+    statusEl.innerHTML = msg;
+    document.getElementById('btnUndo').disabled = !canUndo();
+  }
+
+  function canUndo() {
+    if (!history.length) return false;
+    if (mode === '2') return true;
+    for (var k = 0; k < history.length; k++) if (isHuman(history[k].t)) return true;
+    return false;
+  }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement, q = null;
+    while (t && t !== boardEl) {
+      if (t.tagName === 'TD') { q = t.getAttribute('data-i'); break; }
+      t = t.parentNode;
+    }
+    if (q === null || q === '' || over || busy || !isHuman(turn)) return;
+    q = parseInt(q, 10);
+    if (q >= turn * 7 && q < turn * 7 + 6 && st[q] > 0) play(q);
+  };
+
+  document.getElementById('btnUndo').onclick = function () {
+    if (!canUndo()) return;
+    token++; busy = false;
+    var h;
+    do { h = history.pop(); } while (history.length && mode !== '2' && !isHuman(h.t));
+    st = h.s; turn = h.t; last = h.last; curParts = h.parts; lastTurn = h.lt; over = false;
+    render();
+    maybeComputer();
+  };
+  document.getElementById('btnNew').onclick = newGame;
+  selMode.onchange = newGame;
+  selSeeds.onchange = newGame;
+  selLevel.onchange = function () { level = parseInt(selLevel.value, 10); store('mancala.level', selLevel.value); };
+
+  var sm = store('mancala.mode'), sl = store('mancala.level'), ss = store('mancala.seeds');
+  if (sm) selMode.value = sm;
+  if (sl) selLevel.value = sl;
+  if (ss) selSeeds.value = ss;
+  newGame();
+
+  // expose engine for testing in node (harmless in the browser)
+  if (typeof window !== 'undefined' && window.__mancalatest) window.__mancalatest({
+    newBoard: newBoard, sow: sow, legal: legal, chooseMove: chooseMove,
+    info: function () { return { extra: lastExtra, cap: lastCap, end: lastEnd }; },
+    setLevel: function (l) { level = l; }, MAXD: MAXD, CAP: CAP, newGame: newGame,
+    play: function (i) { play(i); }, state: function () { return { s: st, turn: turn, over: over, history: history }; }
+  });
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

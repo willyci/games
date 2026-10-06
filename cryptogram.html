@@ -332,7 +332,7 @@ select.btn {
   var helpBox = document.getElementById('helpBox');
 
   helpBox.querySelector('h2').addEventListener('click', function() {
-    helpBox.classList.toggle('closed');
+    helpBox.className = helpBox.className.indexOf('closed') >= 0 ? 'help' : 'help closed';
   });
 
   for (var i = 0; i < QUOTES.length; i++) {
@@ -357,6 +357,8 @@ select.btn {
   btnClear.addEventListener('click', function() {
     if (confirm('Clear all your guesses for this puzzle?')) {
       userMap = {};
+      isSolved = false;
+      statusEl.className = 'status';
       for (var c in lockedMap) {
         if (lockedMap[c]) userMap[c] = reverseCipherMap[c];
       }
@@ -377,7 +379,7 @@ select.btn {
         var btn = document.createElement('button');
         btn.className = 'key' + (key.length > 1 ? ' wide' : '');
         btn.textContent = key;
-        btn.dataset.key = key;
+        btn.setAttribute('data-key', key);
         btn.addEventListener('click', handleKeyPress);
         rowEl.appendChild(btn);
       }
@@ -385,7 +387,7 @@ select.btn {
   }
 
   function handleKeyPress(e) {
-    var key = e.currentTarget.dataset.key;
+    var key = (e.currentTarget || this).getAttribute('data-key');
     if (key === 'DEL') deleteGuess();
     else if (key === 'SKIP') selectNextCipherChar();
     else assignGuess(key);
@@ -471,7 +473,7 @@ select.btn {
             (cipherChar === selectedCipherChar ? ' selected' : '') +
             (userMap[cipherChar] ? ' has-guess' : '') +
             (isLocked ? ' locked' : '');
-          charEl.dataset.cipher = cipherChar;
+          charEl.setAttribute('data-cipher', cipherChar);
 
           var guessSpan = document.createElement('span');
           guessSpan.className = 'guess';
@@ -485,8 +487,8 @@ select.btn {
           charEl.appendChild(cipherSpan);
 
           charEl.addEventListener('click', function(e) {
-            var tgt = e.currentTarget;
-            selectedCipherChar = tgt.dataset.cipher;
+            var tgt = e.currentTarget || this;
+            selectedCipherChar = tgt.getAttribute('data-cipher');
             renderBoard();
             updateUI();
           });
@@ -507,6 +509,9 @@ select.btn {
     if (!selectedCipherChar || isSolved) return;
     if (lockedMap[selectedCipherChar]) return;
 
+    for (var lc in userMap) {
+      if (userMap[lc] === letter && lc !== selectedCipherChar && lockedMap[lc]) return; // letter already revealed elsewhere
+    }
     for (var c in userMap) {
       if (userMap[c] === letter && c !== selectedCipherChar && !lockedMap[c]) {
         delete userMap[c];
@@ -590,6 +595,10 @@ select.btn {
     }
 
     var truePlain = reverseCipherMap[hintCipher];
+    // Remove any wrong guess elsewhere that used this letter, so it isn't shown twice
+    for (var oc in userMap) {
+      if (oc !== hintCipher && userMap[oc] === truePlain && !lockedMap[oc]) delete userMap[oc];
+    }
     userMap[hintCipher] = truePlain;
     lockedMap[hintCipher] = true;
     selectedCipherChar = hintCipher;
@@ -647,16 +656,16 @@ select.btn {
     var allKeys = document.querySelectorAll('.key');
     for (var i = 0; i < allKeys.length; i++) {
       var k = allKeys[i];
-      var letter = k.dataset.key;
+      var letter = k.getAttribute('data-key');
       if (letter && letter.length === 1) {
-        if (assignedLetters[letter]) k.classList.add('used');
-        else k.classList.remove('used');
+        k.className = 'key' + (assignedLetters[letter] ? ' used' : '');
       }
     }
   }
 
   document.addEventListener('keydown', function(e) {
-    if (e.target.tagName === 'SELECT') return;
+    if (e.target && e.target.tagName === 'SELECT') return;
+    if (!e.key) return;
 
     var key = e.key.toUpperCase();
     if (key >= 'A' && key <= 'Z' && key.length === 1) assignGuess(key);

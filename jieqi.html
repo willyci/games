@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Chinese Chess</title>
+<title>Jieqi</title>
 <style>
 /* ===== Shared e-ink game style (keep in sync across games) ===== */
 html, body { margin: 0; padding: 0; background: #fff; color: #000; }
@@ -90,11 +90,18 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
 .pc.b { background: #000; border: 4px solid #000; color: #fff; }
 .pc.r.sel { background: #000; color: #fff; }
 .pc.b.sel { background: #fff; color: #000; }
+/* face-down pieces: grey disc with a double ring; Red = light grey, Black = dark grey */
+.pc.r.h { background: #ccc; border: 6px double #000; color: #000; }
+.pc.b.h { background: #555; border: 6px double #000; color: #fff; }
+.pc.r.h.sel { background: #000; color: #fff; }
+.pc.b.h.sel { background: #fff; color: #000; }
 .box { position: absolute; display: block; box-sizing: border-box; -webkit-box-sizing: border-box; z-index: 1; }
 .box.sel { border: 4px solid #000; }
 .box.last { border: 2px dashed #000; }
 .dot { position: absolute; display: block; width: 18px; height: 18px; z-index: 3;
   background: #000; border: 2px solid #fff; border-radius: 50%; }
+.trays { width: 100%; box-sizing: border-box; font-size: 15px; line-height: 1.35; padding: 0 4px; }
+.trays b { font-family: "STKaiti", "KaiTi", "SimSun", "Songti SC", serif; }
 </style>
 </head>
 <body>
@@ -103,11 +110,13 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
     <section class="board-column">
       <div class="status" id="status"></div>
       <div class="wrap"><table class="board" id="board"></table></div>
+      <div class="trays" id="trays"></div>
     </section>
     <section class="bottom-menu">
       <div class="action-bar-grid">
         <a class="btn" href="index.html">&#8592; Games</a>
         <button class="btn" id="btnUndo">Undo</button>
+        <button class="btn" id="btnHint">Hints</button>
         <button class="btn" id="btnNew">New</button>
       </div>
       <div class="match-setup-row">
@@ -125,28 +134,42 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
   </main>
   <div class="help">
     <h2>How to play</h2>
-    Red (white discs, bottom) moves first; against the computer you play Red.
-    Pieces stand on the line crossings. Tap a piece, then tap a dotted point to move.
-    <b>帥/將 General</b>: one step along a line, never leaving the palace (the box with the X).
-    The two generals may never face each other on an open file.
-    <b>仕/士 Advisor</b>: one step diagonally inside the palace.
-    <b>相/象 Elephant</b>: exactly two points diagonally, blocked if the point in between is occupied; cannot cross the river.
+    <b>Jieqi (揭棋, &ldquo;reveal chess&rdquo;)</b> is Chinese Chess with hidden pieces.
+    Red (bottom) moves first; against the computer you play Red.
+    Tap a piece, then tap a dotted point to move.<br>
+    <b>Setup:</b> both Generals start face-up on their usual points. Each side&rsquo;s other 15 pieces are shuffled
+    and placed <b>face-down</b> on the 15 normal starting points. Face-down pieces are grey discs with a double ring
+    showing 暗: <b>light grey = Red&rsquo;s</b>, <b>dark grey = Black&rsquo;s</b>.<br>
+    <b>Face-down moves:</b> a face-down piece moves like the piece that normally starts on its point
+    (on a cannon point it moves like a cannon, on a soldier point like a soldier, and so on).
+    The <b>Hints</b> button shows that movement type on each face-down disc.<br>
+    <b>Reveal:</b> when a face-down piece moves (or captures) it is turned face-up where it lands and from then on moves
+    as what it really is. Capturing a face-down enemy shows what it was; captured pieces are listed under the board.<br>
+    <b>Revealed pieces:</b>
+    <b>帥/將 General</b>: one step along a line, never leaving the palace; the two generals may never face each other on an open file.
+    <b>仕/士 Advisor</b>: one step diagonally &mdash; once revealed it may go <b>anywhere</b>, not just the palace.
+    <b>相/象 Elephant</b>: exactly two points diagonally, blocked if the point in between is occupied &mdash; once revealed it <b>may cross the river</b>.
     <b>傌/馬 Horse</b>: one step straight then one diagonally outward; blocked by a piece next to it in the direction it moves.
     <b>俥/車 Chariot</b>: any distance along a line.
     <b>炮/砲 Cannon</b>: moves like a chariot, but captures only by jumping over exactly one piece.
-    <b>兵/卒 Soldier</b>: one step forward; after crossing the river it may also step sideways.
+    <b>兵/卒 Soldier</b>: one step toward the enemy side; after crossing the river it may also step sideways.<br>
+    Face-down pieces block and screen like any piece, and give check by their face-down movement.
     You may not leave your general in check. A side with no legal move (checkmate or stalemate) loses.
-    Undo takes back your last move.
+    Three-fold repetition or 60 moves each without a capture is a draw.
+    The computer does not peek: it only knows how many of each piece are still face-down.
+    Undo takes back your last move; face-down pieces are reshuffled when you undo, so it cannot be used to peek.
   </div>
 </div>
 <script>
 (function () {
   var RED = 1, BLK = -1, HUMAN = RED, AI = BLK;
-  var K = 1, A = 2, E = 3, H = 4, R = 5, C = 6, P = 7;
+  var K = 1, A = 2, E = 3, H = 4, R = 5, C = 6, P = 7, HID = 8;
+  // Board codes: side * code. 1..7 = face-up piece, 8 + t = face-down piece moving as type t (its square's type).
   var RED_CH = ['', '帥', '仕', '相', '傌', '俥', '炮', '兵'];
   var BLK_CH = ['', '將', '士', '象', '馬', '車', '砲', '卒'];
   var VAL = [0, 0, 200, 200, 400, 900, 450, 100];
-  var OV = [0, 10000, 20, 20, 40, 90, 45, 10];
+  var OV = [0, 10000, 20, 20, 40, 90, 45, 10, 0, 0, 32, 32, 32, 32, 32, 32];
+  var BAG = [A, A, E, E, H, H, R, R, C, C, P, P, P, P, P];
   var ORTH = [[-1, 0], [1, 0], [0, -1], [0, 1]];
   var DIAG = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
   var HORSE = [[-2, -1, -1, 0], [-2, 1, -1, 0], [2, -1, 1, 0], [2, 1, 1, 0],
@@ -154,29 +177,31 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
   var SOLDIER_ROW = [20, 50, 60, 50, 30];
   var MATE = 100000, INF = 1000000;
 
-  var board = [], turn = RED, history = [], legal = [], sel = -1, targets = [];
+  var board = [], ident = [], pools = [], taken = [[], []], turn = RED, history = [], legal = [], sel = -1, targets = [];
   var lastFrom = -1, lastTo = -1, quiet = 0, keys = [];
-  var over = false, overMsg = '', thinking = false, timer = null, note = '';
+  var over = false, overMsg = '', thinking = false, timer = null, note = '', hints = false;
   var mode = 'cpu', level = 2, cells = [], S = 50;
 
   var boardEl = document.getElementById('board');
   var statusEl = document.getElementById('status');
+  var traysEl = document.getElementById('trays');
   var selMode = document.getElementById('selMode');
   var selLevel = document.getElementById('selLevel');
   var btnUndo = document.getElementById('btnUndo');
+  var btnHint = document.getElementById('btnHint');
 
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
 
   function cellSize() {
     var w = window.innerWidth || document.documentElement.clientWidth || 600;
     var h = window.innerHeight || document.documentElement.clientHeight || 800;
-    var s = Math.floor(Math.min((w - 24) / 9, (h - 190) / 10));
+    var s = Math.floor(Math.min((w - 24) / 9, (h - 240) / 10));
     return Math.max(40, Math.min(90, s));
   }
 
   // ---------- Rules ----------
   // 90 points, index r * 9 + c, row 0 = Black's back rank (top). Positive = Red, negative = Black.
-  function initBoard() {
+  function xiangqiBoard() {
     var b = [], i, back = [R, H, E, A, K, A, E, H, R];
     for (i = 0; i < 90; i++) b.push(0);
     for (i = 0; i < 9; i++) { b[i] = -back[i]; b[81 + i] = back[i]; }
@@ -184,6 +209,33 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
     for (i = 0; i < 9; i += 2) { b[27 + i] = -P; b[54 + i] = P; }
     return b;
   }
+
+  function shuffle(a) {
+    var i, j, x;
+    for (i = a.length - 1; i > 0; i--) { j = Math.floor(Math.random() * (i + 1)); x = a[i]; a[i] = a[j]; a[j] = x; }
+    return a;
+  }
+
+  // Face-down deal: board holds only the square types; the true identities live in id[] (never given to the AI).
+  function deal() {
+    var base = xiangqiBoard(), b = [], id = [], i, v, t, sq = [[], []], s, bag, k;
+    for (i = 0; i < 90; i++) { b.push(0); id.push(0); }
+    for (i = 0; i < 90; i++) {
+      v = base[i];
+      if (!v) continue;
+      t = v > 0 ? v : -v;
+      if (t === K) { b[i] = v; continue; }
+      b[i] = (v > 0 ? 1 : -1) * (HID + t);
+      sq[v > 0 ? 0 : 1].push(i);
+    }
+    for (s = 0; s < 2; s++) {
+      bag = shuffle(BAG.slice());
+      for (k = 0; k < 15; k++) id[sq[s][k]] = bag[k];
+    }
+    return { b: b, id: id };
+  }
+
+  function freshPool() { return [0, 0, 2, 2, 2, 2, 2, 5]; }
 
   function onBoard(r, c) { return r >= 0 && r < 10 && c >= 0 && c < 9; }
   function inPalace(r, c, side) { return c >= 3 && c <= 5 && (side > 0 ? (r >= 7 && r <= 9) : (r >= 0 && r <= 2)); }
@@ -197,11 +249,11 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
 
   // Pseudo-legal moves (may leave own general in check). caps = captures only.
   function gen(b, side, caps) {
-    var out = [], i, v, t, r, c, k, d, rr, cc, j, w, scr;
+    var out = [], i, v, a, t, hid, r, c, k, d, rr, cc, j, w, scr;
     for (i = 0; i < 90; i++) {
       v = b[i];
       if (v * side <= 0) continue;
-      t = v > 0 ? v : -v;
+      a = v > 0 ? v : -v; t = a & 7; hid = a & HID;
       r = (i / 9) | 0; c = i - r * 9;
       if (t === R || t === C) {
         for (k = 0; k < 4; k++) {
@@ -233,16 +285,18 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
           if (c < 8) add(b, side, out, caps, i, i + 1);
         }
       } else if (t === E) {
+        // face-down: own half only (as in Xiangqi); face-up: may cross the river
         for (k = 0; k < 4; k++) {
           d = DIAG[k]; rr = r + 2 * d[0]; cc = c + 2 * d[1];
-          if (!onBoard(rr, cc) || (side > 0 ? rr < 5 : rr > 4)) continue;
+          if (!onBoard(rr, cc) || (hid && (side > 0 ? rr < 5 : rr > 4))) continue;
           if (b[(r + d[0]) * 9 + c + d[1]] !== 0) continue;
           add(b, side, out, caps, i, rr * 9 + cc);
         }
       } else if (t === A) {
+        // face-down: palace only (as in Xiangqi); face-up: anywhere
         for (k = 0; k < 4; k++) {
           d = DIAG[k]; rr = r + d[0]; cc = c + d[1];
-          if (inPalace(rr, cc, side)) add(b, side, out, caps, i, rr * 9 + cc);
+          if (hid ? inPalace(rr, cc, side) : onBoard(rr, cc)) add(b, side, out, caps, i, rr * 9 + cc);
         }
       } else { // general
         for (k = 0; k < 4; k++) {
@@ -268,20 +322,28 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
     return -1;
   }
 
+  // enemy (side e) piece with movement type t at w? returns 0 = no, 1 = face-up, 2 = face-down
+  function isE(w, e, t) {
+    if (w * e <= 0) return 0;
+    var a = w > 0 ? w : -w;
+    if ((a & 7) !== t) return 0;
+    return (a & HID) ? 2 : 1;
+  }
+
   // Is point k (holding side's piece) attacked by the other side?
   function attacked(b, k, side) {
-    var r = (k / 9) | 0, c = k - r * 9, e = -side, n, d, rr, cc, w, scr, h, lr, lc;
+    var r = (k / 9) | 0, c = k - r * 9, e = -side, n, d, rr, cc, w, scr, h, lr, lc, x;
     for (n = 0; n < 4; n++) {
       d = ORTH[n]; rr = r + d[0]; cc = c + d[1]; scr = false;
       while (rr >= 0 && rr < 10 && cc >= 0 && cc < 9) {
         w = b[rr * 9 + cc];
         if (w !== 0) {
           if (!scr) {
-            if (w === e * R) return true;
+            if (isE(w, e, R)) return true;
             if (w === e * K && d[1] === 0) return true;
             scr = true;
           } else {
-            if (w === e * C) return true;
+            if (isE(w, e, C)) return true;
             break;
           }
         }
@@ -290,18 +352,29 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
     }
     for (n = 0; n < 8; n++) {
       h = HORSE[n]; rr = r + h[0]; cc = c + h[1];
-      if (!onBoard(rr, cc) || b[rr * 9 + cc] !== e * H) continue;
+      if (!onBoard(rr, cc) || !isE(b[rr * 9 + cc], e, H)) continue;
       // leg of the attacking horse
       if (h[0] === 2 || h[0] === -2) { lr = r + (h[0] > 0 ? 1 : -1); lc = cc; }
       else { lr = rr; lc = c + (h[1] > 0 ? 1 : -1); }
       if (b[lr * 9 + lc] === 0) return true;
     }
-    // soldiers (enemy soldiers move toward row change of +side... i.e. forward = -e)
+    // soldiers (an enemy soldier moves toward row - e, so it attacks from row r + e)
     rr = r + e;
-    if (rr >= 0 && rr < 10 && b[rr * 9 + c] === e * P) return true;
+    if (rr >= 0 && rr < 10 && isE(b[rr * 9 + c], e, P)) return true;
     if (e > 0 ? r <= 4 : r >= 5) {
-      if (c > 0 && b[k - 1] === e * P) return true;
-      if (c < 8 && b[k + 1] === e * P) return true;
+      if (c > 0 && isE(b[k - 1], e, P)) return true;
+      if (c < 8 && isE(b[k + 1], e, P)) return true;
+    }
+    // advisors and elephants (face-down ones keep their Xiangqi limits)
+    for (n = 0; n < 4; n++) {
+      d = DIAG[n]; rr = r + d[0]; cc = c + d[1];
+      if (!onBoard(rr, cc)) continue;
+      x = isE(b[rr * 9 + cc], e, A);
+      if (x === 1 || (x === 2 && inPalace(r, c, e))) return true;
+      rr += d[0]; cc += d[1];
+      if (!onBoard(rr, cc) || b[(r + d[0]) * 9 + c + d[1]] !== 0) continue;
+      x = isE(b[rr * 9 + cc], e, E);
+      if (x === 1 || (x === 2 && (e > 0 ? r >= 5 : r <= 4))) return true;
     }
     return false;
   }
@@ -323,12 +396,26 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
   }
 
   // ---------- Computer player ----------
+  // The search only sees the board codes (face-down = "moves like its square") and the public counts of
+  // still-face-down piece types per side. A face-down piece is worth the average of its side's pool; in the
+  // search tree a face-down piece that moves simply stays "face-down" (same movement, same pool value).
+  var EXPV = [320, 320];
+  function setExp(pl) {
+    var s, t, n, sum;
+    for (s = 0; s < 2; s++) {
+      n = 0; sum = 0;
+      for (t = A; t <= P; t++) { n += pl[s][t]; sum += pl[s][t] * VAL[t]; }
+      EXPV[s] = n ? Math.round(sum / n) : 300;
+    }
+  }
+
   function evaluate(b) {   // from Red's point of view
     var s = 0, i, v, t, side, r, c, rr, x, dc;
     for (i = 0; i < 90; i++) {
       v = b[i];
       if (!v) continue;
       if (v > 0) { side = 1; t = v; } else { side = -1; t = -v; }
+      if (t & HID) { s += side * EXPV[side > 0 ? 0 : 1]; continue; }
       r = (i / 9) | 0; c = i - r * 9;
       rr = side > 0 ? r : 9 - r;        // 9 = own back rank, 0 = enemy back rank
       dc = c > 4 ? c - 4 : 4 - c;
@@ -344,18 +431,20 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
 
   var deadline = 0, nodes = 0, nodeCap = 0, aborted = false, killers = [];
 
+  function absv(v) { return v > 0 ? v : -v; }
+
   function orderMoves(b, ms, first, ply) {
     var sc = [], k, m, cap, idx = [], out = [], kl = killers[ply] || [];
     for (k = 0; k < ms.length; k++) {
       m = ms[k]; cap = b[m & 127];
       if (m === first) sc.push(1e7);
-      else if (cap) sc.push(100000 + OV[cap > 0 ? cap : -cap] * 100 - OV[b[m >> 7] > 0 ? b[m >> 7] : -b[m >> 7]]);
+      else if (cap) sc.push(100000 + OV[absv(cap)] * 100 - OV[absv(b[m >> 7])]);
       else if (m === kl[0]) sc.push(5000);
       else if (m === kl[1]) sc.push(4000);
       else sc.push(0);
       idx.push(k);
     }
-    idx.sort(function (x, y) { return sc[y] - sc[x]; });
+    idx.sort(function (x, y) { return sc[y] - sc[x] || x - y; });
     for (k = 0; k < idx.length; k++) out.push(ms[idx[k]]);
     return out;
   }
@@ -417,17 +506,19 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
     return best;
   }
 
-  function chooseMove(b, side) {
-    // Kindle CPU is ~20x slower than a desktop: depth and node budget keep a move under ~10/30/90 ms on a
+  // b: board codes only; pl: public counts of face-down types per side. The true identities are never passed in.
+  function chooseMove(b, side, pl) {
+    // Kindle CPU is ~20x slower than a desktop: depth and node budget keep a move well under 100 ms on a
     // desktop; the wall-clock limit is the safety net on slow devices (best move of the last depth is kept).
     var moves = legalMoves(b, side), maxDepth = level === 1 ? 2 : (level === 2 ? 3 : 4);
     var limit = level === 1 ? 400 : (level === 2 ? 600 : 1500), noise = level === 1 ? 80 : 0;
     var best = moves[0], d, k, m, f, t, cap, val, bestVal, bestM, alpha;
     if (moves.length === 1) return best;
     b = b.slice();
+    setExp(pl);
     killers = [];
     deadline = new Date().getTime() + limit; nodes = 0; aborted = false;
-    nodeCap = level === 1 ? 5000 : (level === 2 ? 15000 : 45000);
+    nodeCap = level === 1 ? 4000 : (level === 2 ? 12000 : 25000);
     for (d = 1; d <= maxDepth; d++) {
       moves = orderMoves(b, moves, best, 0);
       bestVal = -INF; bestM = -1; alpha = -INF;
@@ -450,8 +541,12 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
 
   // ---------- Game flow ----------
   function sideName(s) { return s === RED ? 'Red' : 'Black'; }
+  function ch(side, t) { return side > 0 ? RED_CH[t] : BLK_CH[t]; }
   function posKey() { return board.join(',') + '/' + turn; }
-  function snapshot() { return { b: board.slice(), turn: turn, lf: lastFrom, lt: lastTo, q: quiet, nk: keys.length }; }
+  function snapshot() {
+    return { b: board.slice(), p: [pools[0].slice(), pools[1].slice()], tk: [taken[0].slice(), taken[1].slice()],
+      turn: turn, lf: lastFrom, lt: lastTo, q: quiet, nk: keys.length };
+  }
 
   function startTurn() {
     legal = legalMoves(board, turn);
@@ -474,13 +569,34 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
     if (!over && mode === 'cpu' && turn === AI) computerTurn();
   }
 
+  // Apply a move to the real game: flips a face-down mover, reveals a face-down victim.
+  function applyMove(m) {
+    var f = m >> 7, t = m & 127, mv = board[f], cap = board[t], side = mv > 0 ? 1 : -1;
+    var a = absv(mv), ct, chid = false, rv = 0, msgs = [], who, cpu = mode === 'cpu';
+    if (cap) {
+      quiet = 0;
+      ct = absv(cap);
+      if (ct & HID) { chid = true; ct = ident[t]; pools[side > 0 ? 1 : 0][ct]--; }
+      taken[side > 0 ? 0 : 1].push(ct);
+    } else quiet++;
+    if (a & HID) { rv = ident[f]; pools[side > 0 ? 0 : 1][rv]--; board[t] = side * rv; }
+    else board[t] = mv;
+    board[f] = 0;
+    lastFrom = f; lastTo = t;
+    who = cpu ? (side === HUMAN ? 'You' : 'Computer') : sideName(side);
+    if (rv) msgs.push(cpu ? (side === HUMAN ? 'your piece was a ' + ch(side, rv) : 'Computer revealed ' + ch(side, rv))
+      : sideName(side) + ' revealed ' + ch(side, rv));
+    if (cap) {
+      if (chid) msgs.push(who + ' captured ' + (cpu && side === AI ? 'your' : 'a') + ' hidden ' + ch(-side, ct) + '!');
+      else msgs.push(who + ' captured ' + (cpu && side === AI ? 'your ' : '') + ch(-side, ct));
+    }
+    turn = -turn;
+    return msgs.join(' &middot; ');
+  }
+
   function doMove(m) {
     history.push(snapshot());
-    var f = m >> 7, t = m & 127;
-    if (board[t]) quiet = 0; else quiet++;
-    board[t] = board[f]; board[f] = 0;
-    lastFrom = f; lastTo = t;
-    turn = -turn; note = '';
+    note = applyMove(m);
     startTurn();
   }
 
@@ -489,7 +605,7 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
     render();
     timer = setTimeout(function () {
       timer = null;
-      var m = chooseMove(board, turn);
+      var m = chooseMove(board, turn, pools);
       thinking = false;
       doMove(m);
     }, 50);
@@ -498,10 +614,24 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
   function newGame() {
     if (timer) { clearTimeout(timer); timer = null; }
     mode = selMode.value; level = parseInt(selLevel.value, 10);
-    board = initBoard(); turn = RED; history = []; keys = [];
+    var d = deal();
+    board = d.b; ident = d.id; pools = [freshPool(), freshPool()]; taken = [[], []];
+    turn = RED; history = []; keys = [];
     lastFrom = -1; lastTo = -1; quiet = 0;
     over = false; overMsg = ''; thinking = false; note = '';
     build(); startTurn();
+  }
+
+  // After an undo, reshuffle what the face-down pieces are (same remaining pool), so undo cannot be used to peek.
+  function redeal() {
+    var s, i, v, k, t, sqs, bag;
+    for (s = 0; s < 2; s++) {
+      sqs = []; bag = [];
+      for (i = 0; i < 90; i++) { v = s ? -board[i] : board[i]; if (v > 0 && (v & HID)) sqs.push(i); }
+      for (t = A; t <= P; t++) for (k = 0; k < pools[s][t]; k++) bag.push(t);
+      shuffle(bag);
+      for (k = 0; k < sqs.length; k++) ident[sqs[k]] = bag[k];
+    }
   }
 
   function undo() {
@@ -511,8 +641,9 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
     var s = history.pop();
     while (mode === 'cpu' && s.turn !== HUMAN && history.length) s = history.pop();
     if (mode === 'cpu' && s.turn !== HUMAN) { history.push(s); return; }
-    board = s.b; turn = s.turn; lastFrom = s.lf; lastTo = s.lt; quiet = s.q;
+    board = s.b; pools = s.p; taken = s.tk; turn = s.turn; lastFrom = s.lf; lastTo = s.lt; quiet = s.q;
     keys.length = s.nk;
+    redeal();
     over = false; overMsg = ''; note = '';
     startTurn();
   }
@@ -526,13 +657,12 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
   }
 
   function palaceDiags(s, r, c) {
-    var pr = r <= 2 ? 1 : (r >= 7 ? 8 : -1), out = '', dr, dc;
+    var pr = r <= 2 ? 1 : (r >= 7 ? 8 : -1), dr, dc;
     if (pr < 0 || c < 3 || c > 5) return '';
     dr = pr - r; dc = 4 - c;
     if (dr === 0 && dc === 0) return dg(s, 45) + dg(s, 135) + dg(s, -45) + dg(s, -135);
     if (dr === 0 || dc === 0) return '';
-    out = dg(s, dr > 0 ? (dc > 0 ? 45 : 135) : (dc > 0 ? -45 : -135));
-    return out;
+    return dg(s, dr > 0 ? (dc > 0 ? 45 : 135) : (dc > 0 ? -45 : -135));
   }
 
   function build() {
@@ -543,11 +673,9 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
       for (c = 0; c < 9; c++) {
         i = r * 9 + c;
         x = '';
-        // horizontal line through the centre
         if (c === 0) x += ln(h - 1, h - 1, s - h + 1, 2);
         else if (c === 8) x += ln(0, h - 1, h + 1, 2);
         else x += ln(0, h - 1, s, 2);
-        // vertical line (broken by the river except on the edges)
         if (r === 0 || (r === 5 && c > 0 && c < 8)) x += ln(h - 1, h - 1, 2, s - h + 1);
         else if (r === 9 || (r === 4 && c > 0 && c < 8)) x += ln(h - 1, 0, 2, h + 1);
         else x += ln(h - 1, 0, 2, s);
@@ -557,28 +685,41 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
             'px;font-size:' + fs + 'px;line-height:' + Math.floor(fs * 1.2) + 'px">' + (c === 2 ? '楚 河' : '漢 界') + '</b>';
         }
         html += '<td data-i="' + i + '"><div class="pt" style="width:' + s + 'px;height:' + s + 'px">' + x +
-          '<span class="ct" id="xq' + i + '"></span></div></td>';
+          '<span class="ct" id="jq' + i + '"></span></div></td>';
       }
       html += '</tr>';
     }
     boardEl.innerHTML = html;
     cells = [];
-    for (i = 0; i < 90; i++) cells.push(document.getElementById('xq' + i));
+    for (i = 0; i < 90; i++) cells.push(document.getElementById('jq' + i));
   }
 
   function contains(a, x) { var i; for (i = 0; i < a.length; i++) if (a[i] === x) return true; return false; }
 
+  function trayLine(side) {
+    var t = taken[side > 0 ? 0 : 1], k, out = '';
+    for (k = 0; k < t.length; k++) out += ch(-side, t[k]);
+    var who = mode === 'cpu' ? (side === HUMAN ? 'You took' : 'Computer took') : sideName(side) + ' took';
+    return who + ': <b>' + (out || '&ndash;') + '</b>';
+  }
+
   function render() {
-    var s = S, d = Math.floor(s * 0.86), fs = Math.floor(d * 0.55), i, v, html, bs = s - 4, half = Math.floor(s / 2);
+    var s = S, d = Math.floor(s * 0.86), fs = Math.floor(d * 0.55), i, v, a, side, html, txt, bw, f2;
+    var bs = s - 4, half = Math.floor(s / 2);
     var boxStyle = 'left:2px;top:2px;width:' + bs + 'px;height:' + bs + 'px';
     for (i = 0; i < 90; i++) {
       v = board[i]; html = '';
       if (i === sel) html += '<b class="box sel" style="' + boxStyle + '"></b>';
       else if (i === lastFrom || i === lastTo) html += '<b class="box last" style="' + boxStyle + '"></b>';
       if (v) {
-        html += '<span class="pc ' + (v > 0 ? 'r' : 'b') + (i === sel ? ' sel' : '') + '" style="width:' + d + 'px;height:' + d +
-          'px;margin:' + (-Math.floor(d / 2)) + 'px 0 0 ' + (-Math.floor(d / 2)) + 'px;font-size:' + fs + 'px;line-height:' + (d - 8) + 'px">' +
-          (v > 0 ? RED_CH[v] : BLK_CH[-v]) + '</span>';
+        side = v > 0 ? 1 : -1; a = absv(v);
+        if (a & HID) {
+          bw = 6; f2 = hints ? Math.floor(fs * 0.8) : fs;
+          txt = hints ? ch(side, a & 7) : '暗';
+        } else { bw = 4; f2 = fs; txt = ch(side, a); }
+        html += '<span class="pc ' + (side > 0 ? 'r' : 'b') + ((a & HID) ? ' h' : '') + (i === sel ? ' sel' : '') +
+          '" style="width:' + d + 'px;height:' + d + 'px;margin:' + (-Math.floor(d / 2)) + 'px 0 0 ' + (-Math.floor(d / 2)) +
+          'px;font-size:' + f2 + 'px;line-height:' + (d - 2 * bw) + 'px">' + txt + '</span>';
       }
       if (contains(targets, i)) {
         if (v) html += '<b class="dot" style="left:' + (s - 20) + 'px;top:0"></b>';
@@ -589,7 +730,7 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
 
     if (over) {
       statusEl.className = 'status win';
-      statusEl.innerHTML = overMsg;
+      statusEl.innerHTML = overMsg + (note ? '<br>' + note : '');
     } else {
       statusEl.className = 'status';
       var msg;
@@ -597,10 +738,12 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
       else {
         msg = mode === 'cpu' ? 'Your move (Red)' : sideName(turn) + ' to move';
         if (inCheck(board, turn)) msg = '<b>Check!</b> &middot; ' + msg;
-        if (note) msg += ' &middot; ' + note;
       }
+      if (note) msg += ' &middot; ' + note;
       statusEl.innerHTML = msg;
     }
+    traysEl.innerHTML = trayLine(RED) + '<br>' + trayLine(BLK);
+    btnHint.className = hints ? 'btn on' : 'btn';
     btnUndo.disabled = !history.length || (mode === 'cpu' && history.length === 1 && history[0].turn !== HUMAN);
   }
 
@@ -625,16 +768,22 @@ table.board td { padding: 0; border: 0; cursor: pointer; }
   };
 
   btnUndo.onclick = undo;
+  btnHint.onclick = function () { hints = !hints; store('jieqi.hints', hints ? '1' : '0'); render(); };
   document.getElementById('btnNew').onclick = newGame;
-  selMode.onchange = function () { store('xiangqi.mode', selMode.value); newGame(); };
-  selLevel.onchange = function () { level = parseInt(selLevel.value, 10); store('xiangqi.level', selLevel.value); };
+  selMode.onchange = function () { store('jieqi.mode', selMode.value); newGame(); };
+  selLevel.onchange = function () { level = parseInt(selLevel.value, 10); store('jieqi.level', selLevel.value); };
 
-  if (window.__xqTest) window.__xqTest = { gen: gen, legalMoves: legalMoves, initBoard: initBoard, inCheck: inCheck,
-    chooseMove: chooseMove, setLevel: function (l) { level = l; }, evaluate: evaluate };
+  if (window.__jqTest) window.__jqTest = { gen: gen, legalMoves: legalMoves, deal: deal, xiangqiBoard: xiangqiBoard,
+    inCheck: inCheck, chooseMove: chooseMove, setLevel: function (l) { level = l; }, evaluate: evaluate, setExp: setExp,
+    applyMove: applyMove, freshPool: freshPool,
+    getState: function () { return { board: board, ident: ident, pools: pools, taken: taken, turn: turn, quiet: quiet }; },
+    setState: function (o) { board = o.board; ident = o.ident; pools = o.pools; taken = o.taken; turn = o.turn; quiet = o.quiet || 0; },
+    setMode: function (m) { mode = m; }, getNodes: function () { return nodes; } };
 
-  var sm = store('xiangqi.mode'), sl = store('xiangqi.level');
+  var sm = store('jieqi.mode'), sl = store('jieqi.level');
   if (sm === 'cpu' || sm === 'two') selMode.value = sm;
   if (sl === '1' || sl === '2' || sl === '3') selLevel.value = sl;
+  hints = store('jieqi.hints') === '1';
   newGame();
 })();
 </script>

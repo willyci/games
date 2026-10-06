@@ -257,7 +257,7 @@ table.board td { padding: 0; text-align: center; vertical-align: middle; cursor:
 
   function chooseMove(b, side) {
     var moves = genMoves(b, side), maxDepth = level === 1 ? 2 : (level === 2 ? 4 : 6);
-    var limit = level === 3 ? 2000 : 1200, noise = level === 1 ? 40 : 0;
+    var limit = level === 3 ? 1500 : 500, noise = level === 1 ? 40 : 0;   // wall-clock cap (Kindle is slow)
     var best = moves[0], d, k, val, bestVal, bestIdx, order = [], tmp;
     if (moves.length === 1) return best;
     for (k = 0; k < moves.length; k++) order.push(k);
@@ -265,7 +265,8 @@ table.board td { padding: 0; text-align: center; vertical-align: middle; cursor:
     for (d = 1; d <= maxDepth; d++) {
       bestVal = -1e9; bestIdx = -1;
       for (k = 0; k < order.length; k++) {
-        val = -negamax(applyMove(b, moves[order[k]]), -side, d - 1, -1e9, 1e9, 1);
+        // alpha-beta window at the root too (full window when adding noise)
+        val = -negamax(applyMove(b, moves[order[k]]), -side, d - 1, -1e9, noise || bestVal < -1e8 ? 1e9 : -bestVal, 1);
         if (aborted) break;
         if (noise) val += Math.floor(Math.random() * noise);
         if (val > bestVal) { bestVal = val; bestIdx = order[k]; }

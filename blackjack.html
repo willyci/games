@@ -420,7 +420,7 @@ select.btn:active { color: #000; background-color: #fff; }
     chips = START_CHIPS; saveChips(); newShoe(); resetRound();
   };
 
-  var c = parseInt(store('blackjack.chips'), 10);
+  var c = parseFloat(store('blackjack.chips')); // 3:2 payouts on odd bets give half chips
   if (!isNaN(c) && c >= 0) chips = c;
   var b = store('blackjack.bet');
   if (b) $('selBet').value = b;
@@ -432,7 +432,7 @@ select.btn:active { color: #000; background-color: #fff; }
 /* Shared: fold the "How to play" box; tap its heading to open/close. */
 (function () {
   var ds = document.getElementsByTagName('div'), i;
-  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  for (i = 0; i < ds.length; i++) if ((' ' + ds[i].className + ' ').indexOf(' help ') >= 0) setup(ds[i]);
   function setup(box) {
     var h = box.getElementsByTagName('h2')[0];
     if (!h) return;

@@ -331,14 +331,21 @@ select.btn {
     return top.up && isRed(top.s) !== isRed(c.s) && top.r === c.r + 1;
   }
 
-  function findAutoMove(card) {
+  // srcCol/srcIdx (optional): where the card sits in the tableau. Used to skip
+  // pointless moves (a King already at the bottom of a column to an empty column).
+  function findAutoMove(card, srcCol, srcIdx, noFoundation) {
     // 1. Try foundation
-    for (var f = 0; f < 4; f++) {
+    for (var f = 0; !noFoundation && f < 4; f++) {
       if (canPlayOnFoundation(card, f)) return { type: 'foundation', idx: f };
     }
-    // 2. Try tableau
+    // 2. Try tableau (non-empty columns first, then an empty one)
     for (var t = 0; t < 7; t++) {
-      if (canPlayOnTableau(card, t)) return { type: 'tableau', idx: t };
+      if (t !== srcCol && tableau[t].length && canPlayOnTableau(card, t)) return { type: 'tableau', idx: t };
+    }
+    if (!(srcCol !== undefined && srcIdx === 0)) {
+      for (var e = 0; e < 7; e++) {
+        if (e !== srcCol && !tableau[e].length && canPlayOnTableau(card, e)) return { type: 'tableau', idx: e };
+      }
     }
     return null;
   }
@@ -361,6 +368,7 @@ select.btn {
 
   function autoFinish() {
     if (!canAutoComplete() || won) return;
+    selected = null;
     saveState();
     var progress = true;
     while (progress && !won) {
@@ -386,6 +394,7 @@ select.btn {
 
   function onStockClick() {
     if (won) return;
+    if (!stock.length && !waste.length) return;
     saveState();
     if (!stock.length) {
       // Recycle waste to stock
@@ -417,6 +426,12 @@ select.btn {
       return;
     }
 
+    // Something is selected and a card in another column was tapped:
+    // treat it as "move the selection onto this column".
+    if (selected && source.type === 'tableau' && (selected.type === 'waste' || selected.col !== source.col)) {
+      if (onPileClick('tableau', source.col)) return;
+    }
+
     // Try smart single-tap move
     var targetCard = source.type === 'waste' ? waste[waste.length - 1] : tableau[source.col][source.idx];
     if (!targetCard || !targetCard.up) return;
@@ -424,8 +439,22 @@ select.btn {
     // If moving entire sequence from tableau
     var isMovingSequence = (source.type === 'tableau' && source.idx < tableau[source.col].length - 1);
 
-    if (!isMovingSequence) {
-      var dest = findAutoMove(targetCard);
+    if (isMovingSequence) {
+      // Smart move a face-up run onto another column
+      var sdest = findAutoMove(targetCard, source.col, source.idx, true);
+      if (sdest) {
+        saveState();
+        var run = tableau[source.col].splice(source.idx);
+        for (var q = 0; q < run.length; q++) tableau[sdest.idx].push(run[q]);
+        if (tableau[source.col].length) tableau[source.col][tableau[source.col].length - 1].up = true;
+        moves++;
+        selected = null;
+        updateStats();
+        render();
+        return;
+      }
+    } else {
+      var dest = findAutoMove(targetCard, source.type === 'tableau' ? source.col : undefined, source.idx);
       if (dest) {
         saveState();
         if (source.type === 'waste') {
@@ -455,10 +484,11 @@ select.btn {
     render();
   }
 
+  // Returns true if a move was made.
   function onPileClick(targetType, targetIdx) {
-    if (!selected || won) return;
-    var cardsToMove = [];
+    if (!selected || won) return false;
     var sourceCol = selected.col;
+    var before = moves;
 
     if (selected.type === 'waste') {
       if (!waste.length) return;
@@ -495,6 +525,7 @@ select.btn {
     won = checkWin();
     updateStats();
     render();
+    return moves !== before;
   }
 
   function undo() {
@@ -588,6 +619,10 @@ select.btn {
     bindEvents();
   }
 
+  function isCardEl(el) {
+    return (' ' + (el.className || '') + ' ').indexOf(' card ') >= 0;
+  }
+
   function bindEvents() {
     document.getElementById('pile-stock').onclick = onStockClick;
 
@@ -609,10 +644,10 @@ select.btn {
         var tEl = document.getElementById('t' + colIdx);
         tEl.onclick = function (e) {
           var targetCardEl = e.target;
-          while (targetCardEl && targetCardEl !== tEl && !targetCardEl.classList.contains('card')) {
+          while (targetCardEl && targetCardEl !== tEl && !isCardEl(targetCardEl)) {
             targetCardEl = targetCardEl.parentNode;
           }
-          if (targetCardEl && targetCardEl.classList.contains('card')) {
+          if (targetCardEl && isCardEl(targetCardEl)) {
             var cards = tEl.querySelectorAll('.card');
             for (var cIdx = 0; cIdx < cards.length; cIdx++) {
               if (cards[cIdx] === targetCardEl) {
@@ -635,7 +670,11 @@ select.btn {
   var btnRestart = document.getElementById('btnRestart');
   if (btnRestart) {
     btnRestart.onclick = function () {
-      while (history.length) undo();
+      // (Looping undo() here would spin forever after a win, since undo is disabled then.)
+      if (!history.length) return;
+      history = [history[0]];
+      won = false;
+      undo();
     };
   }
   selDraw.onchange = function () {

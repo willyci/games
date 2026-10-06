@@ -191,7 +191,7 @@ body {
       <li><b>Foundations:</b> The 4 top-right piles build up Ace to King in the same suit.</li>
       <li><b>Tableau:</b> Build down in alternating colors (e.g. Red 6 on Black 7). Any card can fill an empty column.</li>
       <li><b>Supermove:</b> The number of cards you can move together depends on how many free cells and empty columns are open.</li>
-      <li><b>Tap to move:</b> Tap a card to auto-move it to a foundation, tableau, or free cell. Tap source then destination to place manually.</li>
+      <li><b>Tap to move:</b> Tap a card to auto-move it to a foundation or onto a column. If it can't go there, it is selected: then tap a free cell or column to place it.</li>
     </ul>
   </div>
 </div>
@@ -333,7 +333,9 @@ body {
 
   function autoFinish() {
     if (won) return;
+    selected = null;
     saveState();
+    var startMoves = moves;
     var progress = true;
     while (progress && !won) {
       progress = false;
@@ -363,6 +365,7 @@ body {
       }
       if (checkWin()) { won = true; break; }
     }
+    if (moves === startMoves) history.pop(); // nothing moved: drop the no-op undo step
     updateStats();
     render();
   }
@@ -375,6 +378,12 @@ body {
       selected = null;
       render();
       return;
+    }
+
+    // Something is selected and a card in another column was tapped:
+    // treat it as "move the selection onto this column".
+    if (selected && source.type === 'tableau' && (selected.type === 'cell' || selected.col !== source.col)) {
+      if (onPileClick('tableau', source.col)) return;
     }
 
     var card = source.type === 'cell' ? freeCells[source.idx] : tableau[source.col][source.idx];
@@ -410,11 +419,13 @@ body {
     render();
   }
 
+  // Returns true if a move was made.
   function onPileClick(targetType, targetIdx) {
-    if (!selected || won) return;
+    if (!selected || won) return false;
 
     var sourceCard = selected.type === 'cell' ? freeCells[selected.idx] : tableau[selected.col][selected.idx];
-    if (!sourceCard) return;
+    if (!sourceCard) return false;
+    var before = moves;
 
     if (selected.type === 'cell') {
       if (targetType === 'foundation' && canPlayOnFoundation(sourceCard, targetIdx)) {
@@ -458,6 +469,7 @@ body {
     won = checkWin();
     updateStats();
     render();
+    return moves !== before;
   }
 
   function undo() {
@@ -555,6 +567,10 @@ body {
     bindEvents();
   }
 
+  function isCardEl(el) {
+    return (' ' + (el.className || '') + ' ').indexOf(' card ') >= 0;
+  }
+
   function bindEvents() {
     for (var c = 0; c < 4; c++) {
       (function (idx) {
@@ -578,10 +594,10 @@ body {
         var tEl = document.getElementById('t' + colIdx);
         tEl.onclick = function (e) {
           var targetCardEl = e.target;
-          while (targetCardEl && targetCardEl !== tEl && !targetCardEl.classList.contains('card')) {
+          while (targetCardEl && targetCardEl !== tEl && !isCardEl(targetCardEl)) {
             targetCardEl = targetCardEl.parentNode;
           }
-          if (targetCardEl && targetCardEl.classList.contains('card')) {
+          if (targetCardEl && isCardEl(targetCardEl)) {
             var cards = tEl.querySelectorAll('.card');
             for (var cIdx = 0; cIdx < cards.length; cIdx++) {
               if (cards[cIdx] === targetCardEl) {

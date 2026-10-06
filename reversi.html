@@ -245,7 +245,10 @@ table.board td { border: 1px solid #000; padding: 0; text-align: center; vertica
     ms.sort(function (a, b) { return POSW[b] - POSW[a]; });
     return ms;
   }
+  var deadline = 0, nodes = 0, aborted = false;
   function negamax(b, p, depth, alpha, beta, ev, passed) {
+    if ((++nodes & 511) === 0 && new Date().getTime() > deadline) aborted = true;
+    if (aborted) return 0;
     if (depth <= 0) return ev(b, p);
     var ms = moveList(b, p), best = -Infinity, k, fl, v;
     if (!ms.length) {
@@ -257,6 +260,7 @@ table.board td { border: 1px solid #000; padding: 0; text-align: center; vertica
       fl = doMove(b, ms[k], p);
       v = -negamax(b, -p, depth - 1, -beta, -alpha, ev, false);
       undoMove(b, ms[k], p, fl);
+      if (aborted) return 0;
       if (v > best) best = v;
       if (best > alpha) alpha = best;
       if (alpha >= beta) break;
@@ -280,17 +284,29 @@ table.board td { border: 1px solid #000; padding: 0; text-align: center; vertica
       return best;
     }
     var depth = level === 2 ? 3 : 5, ev = level === 2 ? evalMedium : evalHard;
-    var e = empties(b);
-    if (level === 3 && e <= 8) { depth = e + 4; ev = finalScore; }
+    var e = empties(b), d = 1, alpha, cur, j;
+    if (level === 3 && e <= 8) { depth = e + 4; ev = finalScore; d = depth; }
     // stable sort keeps the random order among equal weights
     ms = order(ms);
-    var alpha = -Infinity, beta = Infinity;
-    for (k = 0; k < ms.length; k++) {
-      fl = doMove(b, ms[k], p);
-      v = -negamax(b, -p, depth - 1, -beta, -alpha, ev, false);
-      undoMove(b, ms[k], p, fl);
-      if (v > bestV) { bestV = v; best = ms[k]; }
-      if (bestV > alpha) alpha = bestV;
+    best = ms[0];
+    // Iterative deepening under a wall-clock cap; keep the best move of the last finished depth.
+    deadline = new Date().getTime() + (level === 3 ? 1500 : 500); nodes = 0; aborted = false;
+    for (; d <= depth; d++) {
+      alpha = -Infinity; bestV = -Infinity; cur = null;
+      for (k = 0; k < ms.length; k++) {
+        fl = doMove(b, ms[k], p);
+        v = -negamax(b, -p, d - 1, -Infinity, -alpha, ev, false);
+        undoMove(b, ms[k], p, fl);
+        if (aborted) break;
+        if (v > bestV) { bestV = v; cur = k; }
+        if (bestV > alpha) alpha = bestV;
+      }
+      if (cur !== null && (!aborted || d === depth && ev === finalScore)) {
+        best = ms[cur];
+        for (j = cur; j > 0; j--) ms[j] = ms[j - 1];   // search it first next time
+        ms[0] = best;
+      }
+      if (aborted) break;
     }
     return best;
   }

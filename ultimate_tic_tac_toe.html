@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ultimate Tic-Tac-Toe</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.app-container {
+  width: 100%; max-width: 680px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.main-layout {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%;
+}
+.board-column {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%;
+}
+.bottom-menu {
+  display: flex; flex-direction: column; gap: 6px; width: 100%;
+}
+.action-bar-grid {
+  display: flex; flex-wrap: wrap; gap: 6px; width: 100%; justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0; min-width: 60px; margin: 0;
+}
+.match-setup-row {
+  display: flex; gap: 6px; width: 100%; justify-content: center;
+}
+.match-setup-row select.btn {
+  flex: 1 1 0; min-width: 0; margin: 0;
+}
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 38px; line-height: 34px;
+  padding: 0 10px; margin: 2px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 16px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 1px; top: 1px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 32px 0 10px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 16px; line-height: 1.25; padding: 6px 10px; min-height: 22px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px; width: 100%; box-sizing: border-box;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 6px 0 4px; width: 100%; }
+.help {
+  font-size: 15px; line-height: 1.4; margin: 6px 0 16px; padding: 0 12px 10px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 40px; padding-bottom: 0; }
+.help h2 {
+  font-size: 16px; margin: 0 -12px 6px; padding: 0 12px; height: 40px; line-height: 40px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "▴"; float: right; font-size: 18px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.ub { border-collapse: collapse; margin: 0 auto; }
+table.ub td.ob { border: 5px solid #000; padding: 2px; vertical-align: middle; background: #fff; }
+table.ub tr.R0 td.ob { border-top: 0; }
+table.ub tr.R2 td.ob { border-bottom: 0; }
+table.ub td.ob.C0 { border-left: 0; }
+table.ub td.ob.C2 { border-right: 0; }
+.sbw { position: relative; border: 3px solid #fff; }
+.sbw.act { border-color: #000; }
+table.sb { border-collapse: collapse; }
+table.sb td {
+  border: 1px solid #000; padding: 0; text-align: center; vertical-align: middle; cursor: pointer;
+  background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; font-weight: bold;
+}
+table.sb tr.r0 td { border-top: 0; }
+table.sb tr.r2 td { border-bottom: 0; }
+table.sb td.c0 { border-left: 0; }
+table.sb td.c2 { border-right: 0; }
+table.sb td.off { background: #ddd; cursor: default; }
+table.sb td.dim { color: #bbb; background: #fff; cursor: default; }
+.big {
+  position: absolute; left: 0; top: 0; text-align: center;
+  font-family: Arial, Helvetica, sans-serif; font-weight: bold; color: #000;
+}
+.big.dr { color: #999; }
+.big.wl { background: #000; color: #fff; }
+.mk { display: inline-block; line-height: 1; }
+.mk.last { border-bottom: 4px solid #000; }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status"></div>
+      <div class="wrap"><table class="ub" id="board"></table></div>
+    </section>
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnUndo">Undo</button>
+        <button class="btn" id="btnNew">New</button>
+      </div>
+      <div class="match-setup-row">
+        <select class="btn" id="selMode">
+          <option value="x" selected>You (X) vs Computer</option>
+          <option value="o">You (O) vs Computer</option>
+          <option value="2">Two Players</option>
+        </select>
+        <select class="btn" id="selLevel">
+          <option value="1">Easy</option>
+          <option value="2" selected>Medium</option>
+          <option value="3">Hard</option>
+        </select>
+      </div>
+    </section>
+  </main>
+  <div class="help">
+    <h2>How to play</h2>
+    The board is a 3&times;3 grid of small tic-tac-toe boards. X moves first, anywhere.
+    After that, the square you pick inside a small board <b>sends</b> your opponent to the matching
+    small board: play the top-right square and your opponent must play in the top-right board.
+    The board(s) where the next mark may go have a thick black frame and white squares; all other
+    squares are grey. If you are sent to a board that is already won or full, you may play in any
+    open board. Get three in a row in a small board to win it: it is covered by a big X or O.
+    A full small board with no line is drawn (marked &ndash;) and counts for nobody.
+    Win three small boards in a row &mdash; across, down or diagonally &mdash; to win the game
+    (the winning boards turn black). If no moves are left and nobody has three in a row, the
+    player who won <b>more small boards</b> wins; equal counts are a draw.
+    The most recent mark is underlined.
+  </div>
+</div>
+<script>
+(function () {
+  var LINES = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+  var X = 1, O = -1, DRAWN = 2, WIN = 100000;
+  // lines through each square of a 3x3 board
+  var CL = [], i, j;
+  for (i = 0; i < 9; i++) CL.push([]);
+  for (j = 0; j < 8; j++) for (i = 0; i < 3; i++) CL[LINES[j][i]].push(LINES[j]);
+
+  // Position: c = 81 squares (board*9 + square), s = 9 small-board states
+  // (0 open, X, O or DRAWN), n = squares filled per small board, f = forced board or -1.
+  var st, turn, last, history, over, winner, winLine, busy, token = 0, mode, level;
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var selMode = document.getElementById('selMode');
+  var selLevel = document.getElementById('selLevel');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function now() { return new Date().getTime(); }
+
+  function cellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor((Math.min(w - 24, 680, h - 230) - 54) / 9);
+    return Math.max(40, Math.min(70, s));
+  }
+
+  // ---------- rules ----------
+  function newState() {
+    var S = { c: [], s: [0, 0, 0, 0, 0, 0, 0, 0, 0], n: [0, 0, 0, 0, 0, 0, 0, 0, 0], f: -1 };
+    for (var k = 0; k < 81; k++) S.c.push(0);
+    return S;
+  }
+  function copyState(S) { return { c: S.c.slice(), s: S.s.slice(), n: S.n.slice(), f: S.f }; }
+  function moves(S) {
+    var out = [], c = S.c, b, k, base;
+    if (S.f >= 0) { base = S.f * 9; for (k = 0; k < 9; k++) if (!c[base + k]) out.push(base + k); return out; }
+    for (b = 0; b < 9; b++) if (S.s[b] === 0) { base = b * 9; for (k = 0; k < 9; k++) if (!c[base + k]) out.push(base + k); }
+    return out;
+  }
+  // Does placing p on square k of small board at base complete a line? (square already set)
+  function smallLine(c, base, k, p) {
+    var ls = CL[k], j, l;
+    for (j = 0; j < ls.length; j++) { l = ls[j]; if (c[base + l[0]] === p && c[base + l[1]] === p && c[base + l[2]] === p) return true; }
+    return false;
+  }
+  function bigLine(s, b, p) {
+    var ls = CL[b], j, l;
+    for (j = 0; j < ls.length; j++) { l = ls[j]; if (s[l[0]] === p && s[l[1]] === p && s[l[2]] === p) return l; }
+    return null;
+  }
+  // Play move m for p. Returns the previous forced board (needed by unmake);
+  // sets S.won = true when the move wins the whole game by three boards in a row.
+  function make(S, m, p) {
+    var b = (m / 9) | 0, k = m - b * 9, pf = S.f;
+    S.c[m] = p; S.n[b]++; S.won = false;
+    if (smallLine(S.c, b * 9, k, p)) { S.s[b] = p; if (bigLine(S.s, b, p)) S.won = true; }
+    else if (S.n[b] === 9) S.s[b] = DRAWN;
+    S.f = S.s[k] === 0 ? k : -1;
+    return pf;
+  }
+  function unmake(S, m, pf) {
+    var b = (m / 9) | 0;
+    S.c[m] = 0; S.n[b]--; S.s[b] = 0; S.f = pf;
+  }
+  // Result when no moves are left and no one has three boards in a row: most boards won.
+  function countResult(S) {
+    var x = 0, o = 0, b;
+    for (b = 0; b < 9; b++) { if (S.s[b] === X) x++; else if (S.s[b] === O) o++; }
+    return x > o ? X : o > x ? O : 0;
+  }
+
+  // ---------- AI ----------
+  var BW = [3, 2, 3, 2, 4, 2, 3, 2, 3];        // value of squares / boards by position
+  var LV = [0, 1, 6];                          // own marks in an otherwise empty-of-enemy line
+  function evaluate(S, p) {
+    var c = S.c, s = S.s, sc = 0, b, j, l, a, o, v, base, x, local, open = [];
+    for (b = 0; b < 9; b++) {
+      v = s[b];
+      if (v === p) { sc += 40 * BW[b]; continue; }
+      if (v === -p) { sc -= 40 * BW[b]; continue; }
+      if (v === DRAWN) continue;
+      base = b * 9; local = 0;
+      for (j = 0; j < 8; j++) {
+        l = LINES[j]; a = 0; o = 0;
+        for (x = 0; x < 3; x++) { v = c[base + l[x]]; if (v === p) a++; else if (v === -p) o++; }
+        if (a && !o) local += LV[a]; else if (o && !a) local -= LV[o];
+      }
+      v = c[base + 4]; if (v === p) local += 2; else if (v === -p) local -= 2;
+      sc += local * BW[b];
+    }
+    for (j = 0; j < 8; j++) {
+      l = LINES[j]; a = 0; o = 0;
+      for (x = 0; x < 3; x++) { v = s[l[x]]; if (v === p) a++; else if (v === -p) o++; else if (v === DRAWN) { a = o = 9; } }
+      if (a === 2 && !o) sc += 150; else if (o === 2 && !a) sc -= 150;
+    }
+    if (S.f < 0) sc += 40;     // side to move may play anywhere
+    return sc;
+  }
+
+  var deadline = 0, nodes = 0, aborted = false;
+  function negamax(S, p, depth, alpha, beta, ply) {
+    if ((++nodes & 1023) === 0 && deadline && now() > deadline) aborted = true;
+    if (aborted) return 0;
+    var ms = moves(S), j, m, pf, v, best = -Infinity, r;
+    if (!ms.length) { r = countResult(S); return r === 0 ? 0 : (r === p ? WIN - ply : ply - WIN); }
+    if (depth <= 0) return evaluate(S, p);
+    if (depth >= 2) ms = order(S, ms, p);
+    for (j = 0; j < ms.length; j++) {
+      m = ms[j];
+      pf = make(S, m, p);
+      if (S.won) v = WIN - ply - 1;
+      else v = -negamax(S, -p, depth - 1, -beta, -alpha, ply + 1);
+      unmake(S, m, pf);
+      if (aborted) return 0;
+      if (v > best) { best = v; if (v > alpha) { alpha = v; if (alpha >= beta) break; } }
+    }
+    return best;
+  }
+  // cheap move ordering: board wins first, then blocks, avoid giving a free choice
+  function order(S, ms, p) {
+    var sc = [], out = [], j, m, b, k, v, idx = [];
+    for (j = 0; j < ms.length; j++) {
+      m = ms[j]; b = (m / 9) | 0; k = m - b * 9; v = BW[k];
+      S.c[m] = p; if (smallLine(S.c, b * 9, k, p)) v += 100;
+      S.c[m] = -p; if (smallLine(S.c, b * 9, k, -p)) v += 50;
+      S.c[m] = 0;
+      if (S.s[k] !== 0 || k === b) v -= 20;
+      sc.push(v); idx.push(j);
+    }
+    idx.sort(function (a, c) { return sc[c] - sc[a]; });
+    for (j = 0; j < idx.length; j++) out.push(ms[idx[j]]);
+    return out;
+  }
+
+  function rootSearch(S, p, depth, ms) {
+    var j, m, pf, v, best = -1, bestV = -Infinity, alpha = -Infinity, scores = [];
+    for (j = 0; j < ms.length; j++) {
+      m = ms[j];
+      pf = make(S, m, p);
+      if (S.won) v = WIN;
+      else v = -negamax(S, -p, depth - 1, -Infinity, -alpha, 1);
+      unmake(S, m, pf);
+      if (aborted) return null;
+      if (v > bestV) { bestV = v; best = m; }
+      if (bestV > alpha) alpha = bestV;
+    }
+    return { m: best, score: bestV };
+  }
+
+  function shuffle(a) {
+    for (var x = a.length - 1; x > 0; x--) { var y = Math.floor(Math.random() * (x + 1)), t = a[x]; a[x] = a[y]; a[y] = t; }
+    return a;
+  }
+  // a move completing a small board for q, or -1
+  function boardWinning(S, ms, q) {
+    for (var j = 0; j < ms.length; j++) {
+      var m = ms[j], b = (m / 9) | 0, k = m - b * 9, w;
+      S.c[m] = q; w = smallLine(S.c, b * 9, k, q); S.c[m] = 0;
+      if (w) return m;
+    }
+    return -1;
+  }
+
+  var MAXD = [0, 0, 3, 6], CAP = [0, 0, 500, 1500];
+  function chooseMove(S, p) {
+    var ms = moves(S), m, j, d, res, best;
+    if (!ms.length) return -1;
+    // a move that wins the game outright
+    for (j = 0; j < ms.length; j++) { var pf = make(S, ms[j], p), w = S.won; unmake(S, ms[j], pf); if (w) return ms[j]; }
+    if (level === 1) {
+      m = boardWinning(S, ms, p); if (m >= 0 && Math.random() < 0.8) return m;
+      m = boardWinning(S, ms, -p); if (m >= 0 && Math.random() < 0.6) return m;
+      return ms[Math.floor(Math.random() * ms.length)];
+    }
+    if (ms.length === 81) return 40;            // opening: centre of the centre board
+    ms = order(S, shuffle(ms), p);
+    best = ms[0]; aborted = false; nodes = 0;
+    deadline = now() + CAP[level];
+    for (d = 1; d <= MAXD[level]; d++) {
+      res = rootSearch(S, p, d, ms);
+      if (!res) break;
+      best = res.m;
+      if (res.score >= WIN - 100 || res.score <= 100 - WIN) break;
+      for (j = 0; j < ms.length; j++) if (ms[j] === best) { ms.splice(j, 1); ms.unshift(best); break; }
+    }
+    deadline = 0;
+    return best;
+  }
+
+  // ---------- game flow ----------
+  function name(p) { return p === X ? 'X' : 'O'; }
+  function isHuman(p) { return mode === '2' || (mode === 'x' && p === X) || (mode === 'o' && p === O); }
+
+  function newGame() {
+    token++;
+    mode = selMode.value;
+    level = parseInt(selLevel.value, 10);
+    store('uttt.mode', mode);
+    st = newState();
+    turn = X; last = -1; history = []; over = false; winner = 0; winLine = null; busy = false;
+    build();
+    render();
+    maybeComputer();
+  }
+
+  function play(m) {
+    history.push({ S: copyState(st), t: turn, last: last });
+    make(st, m, turn);
+    last = m;
+    var b = (m / 9) | 0;
+    if (st.won) { over = true; winner = turn; winLine = bigLine(st.s, b, turn); }
+    else if (!moves(st).length) { over = true; winner = countResult(st); }
+    else turn = -turn;
+    render();
+    maybeComputer();
+  }
+
+  function maybeComputer() {
+    if (over || isHuman(turn)) return;
+    busy = true;
+    render();
+    var my = token;
+    setTimeout(function () {
+      if (my !== token) return;
+      var m = chooseMove(copyState(st), turn);
+      busy = false;
+      if (m >= 0) play(m); else render();
+    }, 50);
+  }
+
+  function build() {
+    var s = cellSize(), bs = s * 3 + 2, html = '', R, C, r, c, b;
+    for (R = 0; R < 3; R++) {
+      html += '<tr class="R' + R + '">';
+      for (C = 0; C < 3; C++) {
+        b = R * 3 + C;
+        html += '<td class="ob C' + C + '"><div class="sbw" id="w' + b + '"><table class="sb">';
+        for (r = 0; r < 3; r++) {
+          html += '<tr class="r' + r + '">';
+          for (c = 0; c < 3; c++) html += '<td class="c' + c + '" data-i="' + (b * 9 + r * 3 + c) + '" style="width:' + s + 'px;height:' + s + 'px;font-size:' + Math.floor(s * 0.6) + 'px"></td>';
+          html += '</tr>';
+        }
+        html += '</table><div class="big" id="g' + b + '" style="display:none;width:' + bs + 'px;height:' + bs + 'px;line-height:' + bs + 'px;font-size:' + Math.floor(bs * 0.85) + 'px"></div></div></td>';
+      }
+      html += '</tr>';
+    }
+    boardEl.innerHTML = html;
+  }
+
+  function render() {
+    var tds = boardEl.getElementsByTagName('td'), j, q, v, b, sv, active, cls, wset = {}, g;
+    var ms = over ? [] : moves(st), canPlay = {};
+    for (j = 0; j < ms.length; j++) canPlay[(ms[j] / 9) | 0] = true;
+    if (winLine) for (j = 0; j < 3; j++) wset[winLine[j]] = true;
+    for (b = 0; b < 9; b++) {
+      sv = st.s[b];
+      document.getElementById('w' + b).className = 'sbw' + (canPlay[b] && !busy ? ' act' : '');
+      g = document.getElementById('g' + b);
+      if (sv) {
+        g.style.display = 'block';
+        g.className = 'big' + (sv === DRAWN ? ' dr' : '') + (wset[b] ? ' wl' : '');
+        g.innerHTML = sv === DRAWN ? '&ndash;' : name(sv);
+      } else g.style.display = 'none';
+    }
+    for (j = 0; j < tds.length; j++) {
+      q = tds[j].getAttribute('data-i');
+      if (q === null || q === '') continue;
+      q = parseInt(q, 10);
+      b = (q / 9) | 0; v = st.c[q]; sv = st.s[b];
+      active = canPlay[b];
+      cls = 'c' + (q % 3);
+      if (sv) cls += ' dim'; else if (!active) cls += ' off';
+      tds[j].className = cls;
+      tds[j].innerHTML = v ? '<span class="mk' + (q === last ? ' last' : '') + '">' + name(v) + '</span>' : '';
+    }
+    var msg;
+    if (over) {
+      statusEl.className = 'status win';
+      var how = winLine ? '' : (winner ? ' on boards won' : '');
+      if (!winner) msg = 'Draw!';
+      else if (mode === '2') msg = name(winner) + ' wins' + how + '!';
+      else msg = isHuman(winner) ? 'You win' + how + '!' : 'Computer wins' + how + '.';
+      msg += ' Tap New to play again.';
+    } else {
+      statusEl.className = 'status';
+      var where = st.f >= 0 ? 'play in the framed board.' : 'play in any open board.';
+      if (busy) msg = 'Thinking&hellip;';
+      else if (mode === '2') msg = name(turn) + ' to move: ' + where;
+      else msg = 'Your move (' + name(turn) + '): ' + where;
+    }
+    statusEl.innerHTML = msg;
+    document.getElementById('btnUndo').disabled = !canUndo();
+  }
+
+  function canUndo() {
+    if (!history.length) return false;
+    if (mode === '2') return true;
+    for (var k = 0; k < history.length; k++) if (isHuman(history[k].t)) return true;
+    return false;
+  }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement, q = null;
+    while (t && t !== boardEl) {
+      if (t.tagName === 'TD') { q = t.getAttribute('data-i'); break; }
+      t = t.parentNode;
+    }
+    if (q === null || q === '' || over || busy || !isHuman(turn)) return;
+    q = parseInt(q, 10);
+    var ms = moves(st);
+    for (var k = 0; k < ms.length; k++) if (ms[k] === q) { play(q); return; }
+  };
+
+  document.getElementById('btnUndo').onclick = function () {
+    if (!canUndo()) return;
+    token++; busy = false;
+    var s;
+    do { s = history.pop(); } while (history.length && mode !== '2' && !isHuman(s.t));
+    st = s.S; turn = s.t; last = s.last; over = false; winner = 0; winLine = null;
+    render();
+    maybeComputer();
+  };
+  document.getElementById('btnNew').onclick = newGame;
+  selMode.onchange = newGame;
+  selLevel.onchange = function () { level = parseInt(selLevel.value, 10); store('uttt.level', selLevel.value); };
+
+  var sm = store('uttt.mode'), sl = store('uttt.level');
+  if (sm) selMode.value = sm;
+  if (sl) selLevel.value = sl;
+  newGame();
+
+  // expose engine for testing in node (harmless in the browser)
+  if (typeof window !== 'undefined' && window.__utttest) window.__utttest({
+    newState: newState, copyState: copyState, moves: moves, make: make, unmake: unmake,
+    countResult: countResult, evaluate: evaluate, chooseMove: chooseMove, bigLine: bigLine,
+    setLevel: function (l) { level = l; }, nodes: function () { return nodes; }, MAXD: MAXD, CAP: CAP
+  });
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    box.className = 'help closed';
+    h.onclick = function () { box.className = box.className === 'help' ? 'help closed' : 'help'; };
+  }
+})();
+</script>
+</body>
+</html>

@@ -220,9 +220,9 @@ table.board tr.bot td.cell { border-bottom: 3px solid #000; }
     return s;
   }
 
-  var deadline = 0, nodes = 0, aborted = false;
+  var deadline = 0, nodes = 0, aborted = false, killer = [];
   function negamax(b, hs, p, depth, alpha, beta, ply) {
-    if ((++nodes & 1023) === 0 && deadline && now() > deadline) aborted = true;
+    if ((++nodes & 255) === 0 && deadline && now() > deadline) aborted = true;
     if (aborted) return 0;
     var j, col, sq, v, best = -Infinity, any = false;
     // Immediate win available?
@@ -237,16 +237,18 @@ table.board tr.bot td.cell { border-bottom: 3px solid #000; }
     }
     if (!any) return 0; // draw
     if (depth <= 0) return evaluate(b, p);
-    for (j = 0; j < COLS; j++) {
-      col = ORDER[j];
-      if (!canDrop(hs, col)) continue;
+    var kc = killer[ply];
+    // try the column that last caused a cutoff at this ply first (killer move)
+    for (j = -1; j < COLS; j++) {
+      col = j < 0 ? kc : ORDER[j];
+      if ((j >= 0 && col === kc) || col < 0 || !canDrop(hs, col)) continue;
       drop(b, hs, col, p);
       v = -negamax(b, hs, -p, depth - 1, -beta, -alpha, ply + 1);
       lift(b, hs, col);
       if (aborted) return 0;
       if (v > best) best = v;
       if (best > alpha) alpha = best;
-      if (alpha >= beta) break;
+      if (alpha >= beta) { killer[ply] = col; break; }
     }
     return best;
   }
@@ -296,10 +298,16 @@ table.board tr.bot td.cell { border-bottom: 3px solid #000; }
       return ms[Math.floor(Math.random() * ms.length)];
     }
     aborted = false; nodes = 0;
+    for (j = 0; j <= 42; j++) killer[j] = -1;
     if (level === 2) {
+      // depth 4 (random order so equally good moves vary from game to game); the time
+      // cap is only a safety net: keep the move of the last completed depth
+      deadline = now() + 500;
+      ms = shuffle(ms.slice());
+      var mres = null, md;
+      for (md = 2; md <= 4; md += 2) { res = rootSearch(b, hs, p, md, ms); if (!res) break; mres = res; }
       deadline = 0;
-      // random order so equally good moves vary from game to game
-      return rootSearch(b, hs, p, 4, shuffle(ms.slice())).col;
+      return mres ? mres.col : ms[0];
     }
     // Hard: iterative deepening up to depth 8 with a time budget.
     deadline = now() + 1200;

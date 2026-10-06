@@ -1425,7 +1425,15 @@
                         }
                     }
                     key += `_${this.turn}_${this.castling.K ? 'K' : ''}${this.castling.Q ? 'Q' : ''}${this.castling.k ? 'k' : ''}${this.castling.q ? 'q' : ''}`;
-                    if (this.enPassant) key += `_${this.enPassant.r}${this.enPassant.c}`;
+                    // FIDE: the e.p. square only distinguishes positions when an e.p. capture is actually available
+                    if (this.enPassant) {
+                        const ep = this.enPassant;
+                        const pr = ep.r + (this.turn === 'w' ? 1 : -1);
+                        for (let dc = -1; dc <= 1; dc += 2) {
+                            const p = (ep.c + dc >= 0 && ep.c + dc < 8) ? this.board[pr][ep.c + dc] : null;
+                            if (p && p.type === 'p' && p.color === this.turn) { key += `_${ep.r}${ep.c}`; break; }
+                        }
+                    }
                     return key;
                 }
 
@@ -1649,7 +1657,9 @@
                     });
                 }
 
-                getPseudoMoves(color) {
+                // capturesOnly=true skips quiet moves (pushes, non-captures, castling) for quiescence search;
+                // promotions are still generated
+                getPseudoMoves(color, capturesOnly = false) {
                     const moves = [];
                     const forward = color === 'w' ? -1 : 1;
                     const startRank = color === 'w' ? 6 : 1;
@@ -1669,7 +1679,7 @@
                                         ['q', 'r', 'b', 'n'].forEach(promo => {
                                             moves.push({ from: { r, c }, to: { r: nr, c }, promotion: promo });
                                         });
-                                    } else {
+                                    } else if (!capturesOnly) {
                                         moves.push({ from: { r, c }, to: { r: nr, c } });
                                         if (r === startRank) {
                                             const nnr = r + forward * 2;
@@ -1716,7 +1726,7 @@
                                     if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
                                         const target = this.board[nr][nc];
                                         if (!target) {
-                                            moves.push({ from: { r, c }, to: { r: nr, c: nc } });
+                                            if (!capturesOnly) moves.push({ from: { r, c }, to: { r: nr, c: nc } });
                                         } else if (target.color === opponent) {
                                             moves.push({ from: { r, c }, to: { r: nr, c: nc }, capture: target });
                                         }
@@ -1740,7 +1750,7 @@
                                     while (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
                                         const target = this.board[nr][nc];
                                         if (!target) {
-                                            moves.push({ from: { r, c }, to: { r: nr, c: nc } });
+                                            if (!capturesOnly) moves.push({ from: { r, c }, to: { r: nr, c: nc } });
                                         } else {
                                             if (target.color === opponent) {
                                                 moves.push({ from: { r, c }, to: { r: nr, c: nc }, capture: target });
@@ -1763,7 +1773,7 @@
                                         if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
                                             const target = this.board[nr][nc];
                                             if (!target) {
-                                                moves.push({ from: { r, c }, to: { r: nr, c: nc } });
+                                                if (!capturesOnly) moves.push({ from: { r, c }, to: { r: nr, c: nc } });
                                             } else if (target.color === opponent) {
                                                 moves.push({ from: { r, c }, to: { r: nr, c: nc }, capture: target });
                                             }
@@ -1772,6 +1782,7 @@
                                 }
 
                                 // Castling
+                                if (capturesOnly) continue;
                                 if (color === 'w' && r === 7 && c === 4) {
                                     if (this.castling.K && !this.board[7][5] && !this.board[7][6]) {
                                         moves.push({ from: { r: 7, c: 4 }, to: { r: 7, c: 6 }, isCastle: 'K' });
@@ -1810,7 +1821,6 @@
                         track: track
                     };
 
-                    if (track) this.unrecordPosition();
 
                     this.board[move.from.r][move.from.c] = null;
 
@@ -1883,6 +1893,7 @@
                 }
 
                 undoMove(undoState) {
+                    // Remove the position this move produced from the repetition counts
                     if (undoState.track) this.unrecordPosition();
 
                     const m = undoState.move;
@@ -1919,7 +1930,6 @@
                         }
                     }
 
-                    if (undoState.track) this.recordPosition();
                 }
 
                 // Castling may not start from, pass through, or land on an attacked square
@@ -2231,7 +2241,7 @@
                     }
 
                     const color = isMaximizing ? 'w' : 'b';
-                    const moves = this.orderMoves(this.game.getPseudoMoves(color)
+                    const moves = this.orderMoves(this.game.getPseudoMoves(color, true)
                         .filter(m => m.capture || m.promotion === 'q'));
 
                     for (let move of moves) {
@@ -2261,7 +2271,15 @@
 
                     // Pseudo-legal generation + legality check on make: no separate legal-move pass per node
                     const color = isMaximizing ? 'w' : 'b';
-                    const moves = this.orderMoves(this.game.getPseudoMoves(color));
+                    const moves = this.game.getPseudoMoves(color);
+                    // Killer heuristic: quiet moves that caused a cutoff at this ply are tried right after captures
+                    const killer = this.killers[ply];
+                    for (let m of moves) {
+                        m.orderScore = this.scoreMove(m);
+                        if (killer && !m.orderScore && m.from.r === killer.from.r && m.from.c === killer.from.c &&
+                            m.to.r === killer.to.r && m.to.c === killer.to.c) m.orderScore = 50;
+                    }
+                    moves.sort((a, b) => b.orderScore - a.orderScore);
                     let legalCount = 0;
                     let best = isMaximizing ? -Infinity : Infinity;
 
@@ -2279,7 +2297,10 @@
                             if (ev < best) best = ev;
                             if (ev < beta) beta = ev;
                         }
-                        if (beta <= alpha) break;
+                        if (beta <= alpha) {
+                            if (!move.capture && !move.promotion) this.killers[ply] = move;
+                            break;
+                        }
                     }
 
                     if (legalCount === 0) {
@@ -2302,13 +2323,14 @@
                             return;
                         }
 
-                        // maxDepth = how deep to search; timeMs = hard budget. Iterative deepening keeps the
-                        // deepest result found in time, so slow devices (e.g. Kindle) just search shallower.
+                        // maxDepth = how deep to search; timeMs = hard wall-clock budget. Iterative deepening keeps the
+                        // deepest result found in time, so slow devices (e.g. Kindle, ~20x slower than a PC) just
+                        // search shallower. Depths are sized so a desktop PC typically finishes well under 100ms.
                         const configs = {
-                            1: { maxDepth: 1, useQuiescence: false, jitter: 50, timeMs: 1000 },
-                            2: { maxDepth: 2, useQuiescence: false, jitter: 15, timeMs: 2000 },
-                            3: { maxDepth: 3, useQuiescence: true, jitter: 0, timeMs: 3000 },
-                            4: { maxDepth: 5, useQuiescence: true, jitter: 0, timeMs: 5000 }
+                            1: { maxDepth: 1, useQuiescence: false, jitter: 50, timeMs: 300 },
+                            2: { maxDepth: 2, useQuiescence: false, jitter: 15, timeMs: 600 },
+                            3: { maxDepth: 3, useQuiescence: true, jitter: 0, timeMs: 1000 },
+                            4: { maxDepth: 4, useQuiescence: true, jitter: 0, timeMs: 1500 }
                         };
                         const cfg = configs[level] || configs[2];
 
@@ -2316,6 +2338,7 @@
                         this.deadline = Date.now() + cfg.timeMs;
                         this.aborted = false;
                         this.nodes = 0;
+                        this.killers = [];
 
                         this.orderMoves(rootMoves);
                         let bestMove = rootMoves[0];
@@ -2356,7 +2379,7 @@
                         }
 
                         callback(bestMove);
-                    }, 30);
+                    }, 50); // yield so the "Thinking..." badge paints (e-ink) before the blocking search
                 }
             }
 

@@ -222,10 +222,12 @@ table.board td { padding: 0; border: 1px solid #000; text-align: center; vertica
 
   function chooseMove(b, side) {
     var moves = genMoves(b, side), scored = [], k, j, d1, v, nb, next, bestNext, d2, pick, cut;
+    var deadline = new Date().getTime() + 1200;   // wall-clock cap: past it, skip the look-ahead
+    moves.sort(function (a, b2) { return delta(a, side) - delta(b2, side); });   // best-looking moves get looked at first
     for (k = 0; k < moves.length; k++) {
       d1 = delta(moves[k], side);
       v = d1;
-      if (level >= 2) {
+      if (level >= 2 && new Date().getTime() < deadline) {
         nb = b.slice(); nb[moves[k][1]] = side; nb[moves[k][0]] = 0;
         if (finished(nb, side)) v = -1000;
         else {

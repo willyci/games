@@ -173,7 +173,7 @@ td.barc .pt { border-color: #eee; }
     <b>Undo</b> to take back moves made this turn. First to bear off all 15 wins (a gammon if the loser
     has borne off none). The numbers show point numbers from the moving player's side.
   </div>
-</div>>
+</div>
 <script>
 (function () {
   // State: st[pl][i], pl 0 = White (bottom, you), 1 = Black (computer / player 2).
@@ -281,9 +281,13 @@ td.barc .pt { border-color: #eee; }
     return out;
   }
   // Every distinct legal full-turn result for player pl.
-  function allTurns(s, pl, ds) {
-    var res = [], seen = {}, L = 0, k, out = [], fin = {};
+  // Optional deadline (ms timestamp): once passed and a turn using all dice has been found, the
+  // search stops early (any turn using every die is legal, so the partial list stays legal).
+  function allTurns(s, pl, ds, deadline) {
+    var res = [], seen = {}, L = 0, k, out = [], fin = {}, nodes = 0, stop = false;
     function dfs(s2, rest, path) {
+      if (stop) return;
+      if (deadline && (++nodes & 63) === 0 && L === ds.length && new Date().getTime() > deadline) { stop = true; return; }
       var key = stateKey(s2) + '#' + rest.slice().sort().join('');
       if (seen[key]) return;
       seen[key] = 1;
@@ -315,6 +319,7 @@ td.barc .pt { border-color: #eee; }
   // ---------- computer heuristic ----------
   function pip(a) { var p = 0, i; for (i = 1; i <= 25; i++) p += i * a[i]; return p; }
   var PW = [0, 1, 1.5, 2, 3, 3.5, 3, 3, 2, 1.5, 1, 1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 2.5, 2.5, 1.5, 1, 1];
+  var CPU_MS = 1200;   // hard cap on computer think time (desktop worst case is ~40 ms)
   var ROLLS = [];
   (function () { var a, b; for (a = 1; a <= 6; a++) for (b = a; b <= 6; b++) ROLLS.push([a, b, a === b ? 1 : 2]); })();
 
@@ -452,11 +457,13 @@ td.barc .pt { border-color: #eee; }
     setTimeout(function () {
       if (my !== token) return;
       if (!haveDice) dice = makeDice(rollDie(), rollDie());
-      var ds = remaining(), turns = allTurns(st, 1, ds), k, best = null, bv = -Infinity, v;
+      // wall-clock cap: enumeration may stop after CPU_MS*0.6, scoring after CPU_MS
+      var t0 = new Date().getTime(), ds = remaining(), turns = allTurns(st, 1, ds, t0 + CPU_MS * 0.6), k, best = null, bv = -Infinity, v;
       var txt = info + 'Computer rolled ' + diceText([dice[0].v, dice[1].v]) + ': ';
       if (!turns.length || !turns[0].moves.length) txt += 'no legal moves. ';
       else {
         for (k = 0; k < turns.length; k++) {
+          if (best && (k & 15) === 0 && new Date().getTime() > t0 + CPU_MS) break;
           v = evaluate(turns[k].s, 1) + Math.random() * 0.01;
           if (v > bv) { bv = v; best = turns[k]; }
         }
@@ -643,7 +650,7 @@ td.barc .pt { border-color: #eee; }
 /* Shared: fold the "How to play" box; tap its heading to open/close. */
 (function () {
   var ds = document.getElementsByTagName('div'), i;
-  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  for (i = 0; i < ds.length; i++) if ((' ' + ds[i].className + ' ').indexOf(' help ') >= 0) setup(ds[i]);
   function setup(box) {
     var h = box.getElementsByTagName('h2')[0];
     if (!h) return;

@@ -310,20 +310,29 @@ body {
   var btnRules = document.getElementById('btnRules');
   var helpBox = document.getElementById('helpBox');
   var statusEl = document.getElementById('status');
-  var nextCardTxt = document.getElementById('nextCardTxt');
-  var curScoreEl = document.getElementById('curScore');
-  var bestScoreEl = document.getElementById('bestScore');
-  var deckRemainEl = document.getElementById('deckRemain');
+  var statusTemplate = statusEl.innerHTML;
+  var nextCardTxt, curScoreEl, bestScoreEl, deckRemainEl;
 
-  bestScoreEl.textContent = bestScore;
+  // The game-over message replaces the status contents, so rebuild the
+  // status line (and re-fetch its child elements) whenever play resumes.
+  function resetStatus() {
+    statusEl.className = 'status';
+    statusEl.innerHTML = statusTemplate;
+    nextCardTxt = document.getElementById('nextCardTxt');
+    curScoreEl = document.getElementById('curScore');
+    bestScoreEl = document.getElementById('bestScore');
+    deckRemainEl = document.getElementById('deckRemain');
+    bestScoreEl.textContent = bestScore;
+  }
+  resetStatus();
+
+  function toggleHelp() {
+    helpBox.className = helpBox.className.indexOf('closed') >= 0 ? 'help' : 'help closed';
+  }
 
   // Rules accordion toggle
-  btnRules.addEventListener('click', function() {
-    helpBox.classList.toggle('closed');
-  });
-  helpBox.querySelector('h2').addEventListener('click', function() {
-    helpBox.classList.toggle('closed');
-  });
+  btnRules.addEventListener('click', toggleHelp);
+  helpBox.getElementsByTagName('h2')[0].addEventListener('click', toggleHelp);
 
   btnNew.addEventListener('click', function() {
     if (moveHistory.length > 0 && moveHistory.length < 25) {
@@ -362,9 +371,10 @@ body {
   function startNewGame() {
     deck = createDeck();
     deckIndex = 0;
-    board = new Array(25).fill(null);
+    board = [];
+    for (var i = 0; i < 25; i++) board.push(null);
     moveHistory = [];
-    statusEl.className = 'status';
+    resetStatus();
     renderGridStructure();
     updateUI();
   }
@@ -377,7 +387,7 @@ body {
         var slot = document.createElement('div');
         slot.className = 'grid-slot';
         slot.id = 'slot-' + idx;
-        slot.dataset.index = idx;
+        slot.setAttribute('data-index', idx);
         slot.addEventListener('click', handleSlotClick);
         gridEl.appendChild(slot);
       }
@@ -404,7 +414,7 @@ body {
 
   function handleSlotClick(e) {
     var slot = e.currentTarget;
-    var idx = parseInt(slot.dataset.index, 10);
+    var idx = parseInt(slot.getAttribute('data-index'), 10);
     if (board[idx] !== null) return;
     if (deckIndex >= 25) return;
 
@@ -425,7 +435,7 @@ body {
     var last = moveHistory.pop();
     board[last.index] = null;
     deckIndex--;
-    statusEl.className = 'status';
+    resetStatus();
     updateUI();
   }
 

@@ -169,7 +169,7 @@ table.board td { border: 0; padding: 0; cursor: pointer; }
     own stones. White gets 6.5 points komi. Small squares show each side's territory.
     Undo during marking returns to play.
   </div>
-</div>>
+</div>
 <script>
 (function () {
   var BLACK = 1, WHITE = -1, KOMI = 6.5;
@@ -285,7 +285,9 @@ table.board td { border: 0; padding: 0; cursor: pointer; }
     var reg = regions(bd), lim = N === 9 ? 8 : 16, early = stoneCount(bd) < N * N / 5;
     var ownA = atariStones(bd, p), oppA = atariStones(bd, -p);
     var best = -1, bestV = -Infinity, i, cp, res, s, inf, line, r, c, near, k, dr, dc, rr, cc, v;
+    var t0 = new Date().getTime();   // wall-clock cap (desktop worst case is ~4 ms on 13x13)
     for (i = 0; i < N * N; i++) {
+      if (best >= 0 && (i & 15) === 0 && new Date().getTime() - t0 > 1000) break;
       if (bd[i] !== 0 || i === ko) continue;
       if (isEye(bd, i, p)) continue;
       cp = bd.slice();
@@ -546,7 +548,7 @@ table.board td { border: 0; padding: 0; cursor: pointer; }
 /* Shared: fold the "How to play" box; tap its heading to open/close. */
 (function () {
   var ds = document.getElementsByTagName('div'), i;
-  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  for (i = 0; i < ds.length; i++) if ((' ' + ds[i].className + ' ').indexOf(' help ') >= 0) setup(ds[i]);
   function setup(box) {
     var h = box.getElementsByTagName('h2')[0];
     if (!h) return;

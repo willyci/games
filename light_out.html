@@ -140,6 +140,7 @@ td.lit span { display: block; margin: 0 auto; border: 3px solid #fff; border-rad
 
   function newGame() {
     N = parseInt(selSize.value, 10);
+    if (!(N >= 3 && N <= 9)) { N = 5; selSize.value = '5'; } // guard: NaN would loop forever below
     var i, k;
     // Build from random presses so the puzzle is always solvable.
     do {

@@ -173,8 +173,6 @@ table.board td.wc { background: #000; color: #fff; }
     if (l) return b[l[0]] === p ? 10 - depth : depth - 10;
     var ms = empties(b), best = -100, j, v;
     if (!ms.length) return 0;
-    // Opening move: any corner or the centre is optimal (skips the slowest search).
-    if (ms.length === 9) return [0, 2, 4, 6, 8][Math.floor(Math.random() * 5)];
     for (j = 0; j < ms.length; j++) {
       b[ms[j]] = p;
       v = -minimax(b, -p, depth + 1);
@@ -201,6 +199,8 @@ table.board td.wc { background: #000; color: #fff; }
       if (m >= 0 && Math.random() < 0.5) return m;
       return ms[Math.floor(Math.random() * ms.length)];
     }
+    // Opening move: any corner or the centre is optimal (skips the slowest search).
+    if (ms.length === 9) return [0, 2, 4, 6, 8][Math.floor(Math.random() * 5)];
     for (j = 0; j < ms.length; j++) {
       b[ms[j]] = p;
       v = -minimax(b, -p, 1);

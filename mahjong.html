@@ -238,7 +238,7 @@ select.btn {
         </select>
         <select class="btn" id="selLayout">
           <option value="mini">Mini (36)</option>
-          <option value="pyramid" selected>Pyramid (72)</option>
+          <option value="pyramid" selected>Pyramid (76)</option>
           <option value="turtle">Turtle (108)</option>
         </select>
       </div>
@@ -259,7 +259,7 @@ select.btn {
     <b>Controls:</b>
     <ul>
       <li><b>Hint:</b> Highlights an available matching pair.</li>
-      <li><b>Shuffle:</b> Rearranges the remaining tiles if no moves are left.</li>
+      <li><b>Shuffle:</b> Rearranges the remaining tiles (always into a clearable layout) if no moves are left.</li>
       <li><b>Undo:</b> Reverses your last match.</li>
     </ul>
   </div>
@@ -292,8 +292,27 @@ select.btn {
   var selLayout = document.getElementById('selLayout');
   var helpBox = document.getElementById('helpBox');
 
-  helpBox.querySelector('h2').addEventListener('click', function() {
-    helpBox.classList.toggle('closed');
+  // ES5-safe class helpers (old Kindle browsers lack class-list support)
+  function hasCls(el, c) { return (' ' + el.className + ' ').indexOf(' ' + c + ' ') >= 0; }
+  function addCls(el, c) { if (!hasCls(el, c)) el.className += ' ' + c; }
+  function removeCls(el, c) {
+    if (hasCls(el, c)) el.className = (' ' + el.className + ' ').split(' ' + c + ' ').join(' ').replace(/^\s+|\s+$/g, '');
+  }
+
+  // The win message replaces the status contents; restore them (and the
+  // element refs) when a new game starts or a move is undone.
+  var statusTemplate = statusEl.innerHTML;
+  function resetStatus() {
+    statusEl.className = 'status';
+    if (remainTilesEl.parentNode !== statusEl) {
+      statusEl.innerHTML = statusTemplate;
+      remainTilesEl = document.getElementById('remainTiles');
+      freePairsEl = document.getElementById('freePairs');
+    }
+  }
+
+  helpBox.getElementsByTagName('h2')[0].addEventListener('click', function() {
+    helpBox.className = hasCls(helpBox, 'closed') ? 'help' : 'help closed';
   });
 
   selMode.addEventListener('change', function() {
@@ -416,6 +435,153 @@ select.btn {
     return pool;
   }
 
+  // ===== Solvable deals =====
+  // Faces are handed out by simulating a full clear: repeatedly take two
+  // positions that would be removable together, and give them a matching pair
+  // of faces. Playing those pairs in that order clears the board, so every
+  // deal (and every Shuffle) is solvable. Cheap: ~1ms on a desktop.
+  function pairUpFaces(faces) {
+    var byKey = {}, pairs = [], k, i, j, t;
+    for (i = 0; i < faces.length; i++) {
+      k = faces[i].key;
+      if (!byKey[k]) byKey[k] = [];
+      byKey[k].push(faces[i]);
+    }
+    for (k in byKey) {
+      for (i = 0; i + 1 < byKey[k].length; i += 2) pairs.push([byKey[k][i], byKey[k][i + 1]]);
+    }
+    for (i = pairs.length - 1; i > 0; i--) {
+      j = Math.floor(Math.random() * (i + 1));
+      t = pairs[i]; pairs[i] = pairs[j]; pairs[j] = t;
+    }
+    return pairs;
+  }
+
+  function anyAlive(arr, alive) {
+    for (var q = 0; q < arr.length; q++) if (alive[arr[q]]) return true;
+    return false;
+  }
+
+  // list: positions {x,y,z}. Returns removal order [[i,j],...] or null.
+  // Uses the same geometry as isTileFree().
+  function solitaireOrder(list) {
+    var n = list.length, EPS = 0.01, cover = [], lft = [], rgt = [], i, j, a, b, dx, dy;
+    for (i = 0; i < n; i++) { cover.push([]); lft.push([]); rgt.push([]); }
+    for (i = 0; i < n; i++) {
+      a = list[i];
+      for (j = 0; j < n; j++) {
+        if (i === j) continue;
+        b = list[j];
+        dx = Math.abs(b.x - a.x); dy = Math.abs(b.y - a.y);
+        if (b.z > a.z) {
+          if (dx < 2 - EPS && dy < 2 - EPS) cover[i].push(j);
+        } else if (b.z === a.z && dy < 2 - EPS) {
+          if (b.x < a.x && b.x + 2 >= a.x - EPS) lft[i].push(j);
+          if (b.x > a.x && a.x + 2 >= b.x - EPS) rgt[i].push(j);
+        }
+      }
+    }
+    var startT = Date.now(); // wall-clock cap so a slow Kindle never stalls
+    for (var attempt = 0; attempt < 40 && (attempt === 0 || Date.now() - startT < 400); attempt++) {
+      var alive = [], remaining = n, order = [];
+      for (i = 0; i < n; i++) alive.push(true);
+      while (remaining > 0) {
+        var free = [];
+        for (i = 0; i < n; i++) {
+          if (alive[i] && !anyAlive(cover[i], alive) && (!anyAlive(lft[i], alive) || !anyAlive(rgt[i], alive))) free.push(i);
+        }
+        if (free.length < 2) break;
+        var p = Math.floor(Math.random() * free.length);
+        var q = Math.floor(Math.random() * (free.length - 1));
+        if (q >= p) q++;
+        alive[free[p]] = false; alive[free[q]] = false;
+        remaining -= 2;
+        order.push([free[p], free[q]]);
+      }
+      if (remaining === 0) return order;
+    }
+    return null;
+  }
+
+  // Occupied cells reachable from (sx,sy) by a line with at most 2 turns.
+  function connectReach(grid, W, H, sx, sy) {
+    var out = [], hit = {}, visited = {}, frontier = [[sx, sy]];
+    var DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+    var startVal = grid[sy][sx];
+    grid[sy][sx] = -1; // the start tile itself is not an obstacle or a target
+    visited[sx + ',' + sy] = 1;
+    for (var seg = 0; seg < 3; seg++) {
+      var next = [];
+      for (var f = 0; f < frontier.length; f++) {
+        for (var d = 0; d < 4; d++) {
+          var x = frontier[f][0] + DX[d], y = frontier[f][1] + DY[d];
+          while (x >= 0 && y >= 0 && x < W && y < H) {
+            if (grid[y][x] >= 0) {
+              if (!hit[x + ',' + y]) { hit[x + ',' + y] = 1; out.push(grid[y][x]); }
+              break;
+            }
+            if (!visited[x + ',' + y]) { visited[x + ',' + y] = 1; next.push([x, y]); }
+            x += DX[d]; y += DY[d];
+          }
+        }
+      }
+      frontier = next;
+    }
+    grid[sy][sx] = startVal;
+    return out;
+  }
+
+  // list: cells {row,col}. Returns removal order [[i,j],...] or null.
+  function connectOrder(list) {
+    var W = llkCols + 2, H = llkRows + 2, n = list.length, i, r, c;
+    var startT = Date.now(); // wall-clock cap so a slow Kindle never stalls
+    for (var attempt = 0; attempt < 40 && (attempt === 0 || Date.now() - startT < 400); attempt++) {
+      var grid = [];
+      for (r = 0; r < H; r++) { grid[r] = []; for (c = 0; c < W; c++) grid[r][c] = -1; }
+      var ids = [];
+      for (i = 0; i < n; i++) { grid[list[i].row + 1][list[i].col + 1] = i; ids.push(i); }
+      var order = [], remaining = n;
+      while (remaining > 0) {
+        // try alive tiles in random order until one can reach another
+        var found = false;
+        for (var k = ids.length - 1; k >= 0 && !found; k--) {
+          var pick = Math.floor(Math.random() * (k + 1));
+          var a = ids[pick]; ids[pick] = ids[k]; ids[k] = a;
+          var reach = connectReach(grid, W, H, list[a].col + 1, list[a].row + 1);
+          if (reach.length) {
+            var b = reach[Math.floor(Math.random() * reach.length)];
+            grid[list[a].row + 1][list[a].col + 1] = -1;
+            grid[list[b].row + 1][list[b].col + 1] = -1;
+            var keep = [];
+            for (i = 0; i < ids.length; i++) if (ids[i] !== a && ids[i] !== b) keep.push(ids[i]);
+            ids = keep;
+            order.push([a, b]);
+            remaining -= 2;
+            found = true;
+          }
+        }
+        if (!found) break;
+      }
+      if (remaining === 0) return order;
+    }
+    return null;
+  }
+
+  // Returns faces re-ordered to match list so the layout is solvable
+  // (falls back to the given random order if no clearing order is found).
+  function dealFaces(list, faces) {
+    var order = (mode === 'solitaire') ? solitaireOrder(list) : connectOrder(list);
+    if (!order) return faces;
+    var pairs = pairUpFaces(faces);
+    if (pairs.length !== order.length) return faces;
+    var out = [];
+    for (var k = 0; k < order.length; k++) {
+      out[order[k][0]] = pairs[k][0];
+      out[order[k][1]] = pairs[k][1];
+    }
+    return out;
+  }
+
   function getSolitaireCoords(layout) {
     var coords = [];
     if (layout === 'mini') {
@@ -483,17 +649,20 @@ select.btn {
 
   function isTileFree(target, allTiles) {
     if (!target || target.removed) return false;
+    var EPS = 0.01;
 
+    // 1. Check if covered by any tile from above (z > target.z)
     for (var i = 0; i < allTiles.length; i++) {
       var other = allTiles[i];
       if (other.removed || other.id === target.id) continue;
       if (other.z > target.z) {
         var dx = Math.abs(other.x - target.x);
         var dy = Math.abs(other.y - target.y);
-        if (dx < 2 && dy < 2) return false;
+        if (dx < 2 - EPS && dy < 2 - EPS) return false;
       }
     }
 
+    // 2. Check if blocked on left and right sides on the same level (z === target.z)
     var blockedLeft = false;
     var blockedRight = false;
 
@@ -502,20 +671,27 @@ select.btn {
       if (other.removed || other.id === target.id) continue;
       if (other.z === target.z) {
         var dy = Math.abs(other.y - target.y);
-        if (dy < 2) {
-          if (other.x + 2 > target.x && other.x < target.x) blockedLeft = true;
-          if (target.x + 2 > other.x && target.x < other.x) blockedRight = true;
+        if (dy < 2 - EPS) {
+          // Touching or overlapping on the left side
+          if (other.x < target.x && (other.x + 2) >= target.x - EPS) {
+            blockedLeft = true;
+          }
+          // Touching or overlapping on the right side
+          if (other.x > target.x && (target.x + 2) >= other.x - EPS) {
+            blockedRight = true;
+          }
         }
       }
     }
 
+    // A tile is free if either its left OR right side is completely open
     return (!blockedLeft || !blockedRight);
   }
 
   function startNewGame() {
     selectedTile = null;
     moveHistory = [];
-    statusEl.className = 'status';
+    resetStatus();
     resizeCanvas();
     ctx.clearRect(0, 0, connectCanvas.width, connectCanvas.height);
 
@@ -528,7 +704,7 @@ select.btn {
     boardEl.innerHTML = '';
 
     var coords = getSolitaireCoords(currentLayout);
-    var pool = createTilePool(coords.length);
+    var pool = dealFaces(coords, createTilePool(coords.length));
 
     tiles = [];
     var minX = 999, maxX = -999, minY = 999, maxY = -999;
@@ -574,7 +750,7 @@ select.btn {
       el.style.top = py + 'px';
       el.style.zIndex = c.z * 100 + Math.floor(c.y * 10);
       el.innerHTML = getTileFaceHTML(tileObj);
-      el.dataset.id = i;
+      el.setAttribute('data-id', i);
 
       el.addEventListener('click', handleTileClick);
       tileObj.el = el;
@@ -586,7 +762,7 @@ select.btn {
   }
 
   function handleTileClick(e) {
-    var id = parseInt(e.currentTarget.dataset.id, 10);
+    var id = parseInt((e.currentTarget || this).getAttribute('data-id'), 10);
     var tile = tiles[id];
     if (!tile || tile.removed) return;
 
@@ -595,23 +771,23 @@ select.btn {
 
       if (!selectedTile) {
         selectedTile = tile;
-        tile.el.classList.add('selected');
+        addCls(tile.el, 'selected');
       } else if (selectedTile.id === tile.id) {
-        tile.el.classList.remove('selected');
+        removeCls(tile.el, 'selected');
         selectedTile = null;
       } else if (selectedTile.key === tile.key) {
         performMatch(selectedTile, tile);
       } else {
-        selectedTile.el.classList.remove('selected');
+        removeCls(selectedTile.el, 'selected');
         selectedTile = tile;
-        tile.el.classList.add('selected');
+        addCls(tile.el, 'selected');
       }
     } else {
       if (!selectedTile) {
         selectedTile = tile;
-        tile.el.classList.add('selected');
+        addCls(tile.el, 'selected');
       } else if (selectedTile.id === tile.id) {
-        tile.el.classList.remove('selected');
+        removeCls(tile.el, 'selected');
         selectedTile = null;
       } else if (selectedTile.key === tile.key) {
         var path = findConnectPath(selectedTile, tile);
@@ -620,20 +796,20 @@ select.btn {
           var t1 = selectedTile;
           var t2 = tile;
           selectedTile = null;
-          t1.el.classList.remove('selected');
+          removeCls(t1.el, 'selected');
           setTimeout(function() {
             performMatch(t1, t2);
             ctx.clearRect(0, 0, connectCanvas.width, connectCanvas.height);
           }, 200);
         } else {
-          selectedTile.el.classList.remove('selected');
+          removeCls(selectedTile.el, 'selected');
           selectedTile = tile;
-          tile.el.classList.add('selected');
+          addCls(tile.el, 'selected');
         }
       } else {
-        selectedTile.el.classList.remove('selected');
+        removeCls(selectedTile.el, 'selected');
         selectedTile = tile;
-        tile.el.classList.add('selected');
+        addCls(tile.el, 'selected');
       }
     }
   }
@@ -643,8 +819,8 @@ select.btn {
     t2.removed = true;
     t1.el.style.display = 'none';
     t2.el.style.display = 'none';
-    if (t1.el.classList.contains('selected')) t1.el.classList.remove('selected');
-    if (t2.el.classList.contains('selected')) t2.el.classList.remove('selected');
+    if (hasCls(t1.el, 'selected')) removeCls(t1.el, 'selected');
+    if (hasCls(t2.el, 'selected')) removeCls(t2.el, 'selected');
     selectedTile = null;
 
     moveHistory.push([t1, t2]);
@@ -667,9 +843,9 @@ select.btn {
     t2.removed = false;
     t1.el.style.display = 'flex';
     t2.el.style.display = 'flex';
-    statusEl.className = 'status';
+    resetStatus();
     if (selectedTile) {
-      selectedTile.el.classList.remove('selected');
+      removeCls(selectedTile.el, 'selected');
       selectedTile = null;
     }
     clearHints();
@@ -683,9 +859,9 @@ select.btn {
       if (t.removed) continue;
       var free = isTileFree(t, tiles);
       if (free) {
-        t.el.classList.remove('blocked');
+        removeCls(t.el, 'blocked');
       } else {
-        t.el.classList.add('blocked');
+        addCls(t.el, 'blocked');
       }
     }
   }
@@ -729,7 +905,7 @@ select.btn {
     remainTilesEl.textContent = remaining;
 
     var stats = countFreePairs();
-    freePairsEl.textContent = stats.pairs;
+    freePairsEl.textContent = (stats.pairs === 0 && remaining > 0) ? '0 - no moves, tap Shuffle' : stats.pairs;
 
     btnUndo.disabled = (moveHistory.length === 0);
 
@@ -740,7 +916,7 @@ select.btn {
 
   function clearHints() {
     for (var i = 0; i < tiles.length; i++) {
-      tiles[i].el.classList.remove('hinted');
+      removeCls(tiles[i].el, 'hinted');
     }
   }
 
@@ -752,8 +928,8 @@ select.btn {
       for (var i = 0; i < free.length; i++) {
         for (var j = i + 1; j < free.length; j++) {
           if (free[i].key === free[j].key) {
-            free[i].el.classList.add('hinted');
-            free[j].el.classList.add('hinted');
+            addCls(free[i].el, 'hinted');
+            addCls(free[j].el, 'hinted');
             return;
           }
         }
@@ -765,8 +941,8 @@ select.btn {
         for (var j = i + 1; j < active.length; j++) {
           if (active[i].key === active[j].key) {
             if (findConnectPath(active[i], active[j])) {
-              active[i].el.classList.add('hinted');
-              active[j].el.classList.add('hinted');
+              addCls(active[i].el, 'hinted');
+              addCls(active[j].el, 'hinted');
               return;
             }
           }
@@ -788,6 +964,7 @@ select.btn {
       var j = Math.floor(Math.random() * (i + 1));
       var tmp = faces[i]; faces[i] = faces[j]; faces[j] = tmp;
     }
+    faces = dealFaces(active, faces); // make the remaining tiles clearable
 
     for (var i = 0; i < active.length; i++) {
       var t = active[i];
@@ -799,7 +976,7 @@ select.btn {
     }
 
     if (selectedTile) {
-      selectedTile.el.classList.remove('selected');
+      removeCls(selectedTile.el, 'selected');
       selectedTile = null;
     }
     clearHints();
@@ -816,7 +993,9 @@ select.btn {
     llkCols = 8;
     llkRows = 6;
     var total = llkCols * llkRows;
-    var pool = createTilePool(total);
+    var cells = [];
+    for (var cr = 0; cr < llkRows; cr++) for (var cc = 0; cc < llkCols; cc++) cells.push({ row: cr, col: cc });
+    var pool = dealFaces(cells, createTilePool(total));
 
     tiles = [];
     var boardWidth = boardEl.clientWidth || 600;
@@ -851,7 +1030,7 @@ select.btn {
         el.style.left = (offsetX + c * tileW) + 'px';
         el.style.top = (offsetY + r * tileH) + 'px';
         el.innerHTML = getTileFaceHTML(tileObj);
-        el.dataset.id = idx;
+        el.setAttribute('data-id', idx);
 
         el.addEventListener('click', handleTileClick);
         tileObj.el = el;
@@ -871,7 +1050,8 @@ select.btn {
     var gridH = llkRows + 2;
     var grid = [];
     for (var r = 0; r < gridH; r++) {
-      grid[r] = new Array(gridW).fill(0);
+      grid[r] = [];
+      for (var gc = 0; gc < gridW; gc++) grid[r][gc] = 0;
     }
     for (var i = 0; i < tiles.length; i++) {
       var t = tiles[i];

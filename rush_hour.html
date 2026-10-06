@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Rush Hour</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.app-container {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 2px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.main-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+}
+.board-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+}
+.bottom-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+.action-bar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0;
+  min-width: 60px;
+  margin: 0;
+}
+.match-setup-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.match-setup-row select.btn {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 44px; min-height: 36px; line-height: 32px;
+  padding: 0 8px; margin: 0;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 15px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 1px; top: 1px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 24px 0 8px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='8'%3E%3Cpath d='M8 0h12L14 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 14px; line-height: 1.25; padding: 4px 8px; min-height: 20px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px;
+  width: 100%; box-sizing: border-box;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 4px 0; width: 100%; }
+.help {
+  font-size: 14px; line-height: 1.4; margin: 3px 0 10px; padding: 0 12px 8px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 34px; padding-bottom: 0; }
+.help h2 {
+  font-size: 15px; margin: 0 -12px 6px; padding: 0 12px; height: 34px; line-height: 34px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "▴"; float: right; font-size: 16px; }
+.help.closed h2:after { content: "+"; }
+
+/* ===== Game specific ===== */
+.lot { position: relative; margin: 0 auto; border: 4px solid #000; border-radius: 4px; background: #fff; }
+.cell { position: absolute; box-sizing: border-box; border: 1px solid #ccc; background: #f4f4f4; }
+.exit { position: absolute; background: #fff; }
+.exit-lbl { position: absolute; font-weight: bold; text-align: center; color: #000; line-height: 1; }
+.veh {
+  position: absolute; box-sizing: border-box; border: 2px solid #000; border-radius: 10px;
+  background: #555; color: #fff; text-align: center; font-weight: bold; cursor: pointer;
+}
+.veh.truck { background: #aaa; color: #000; }
+.veh.red { background: #000; color: #fff; border-color: #000; }
+.veh.sel { background: #fff; color: #000; border: 5px solid #000; }
+.tgt {
+  position: absolute; box-sizing: border-box; border: 2px dashed #000; border-radius: 8px;
+  background: #fff; color: #555; text-align: center; font-weight: bold; cursor: pointer;
+}
+.tgt.hint { background: #000; color: #fff; border-style: solid; }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status">Loading&hellip;</div>
+      <div class="wrap"><div class="lot" id="board"></div></div>
+    </section>
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnUndo">Undo</button>
+        <button class="btn" id="btnRestart">Restart</button>
+        <button class="btn" id="btnHint">Hint</button>
+        <button class="btn" id="btnNext">Next &#9654;</button>
+        <button class="btn" id="btnRules">Rules</button>
+      </div>
+      <div class="match-setup-row">
+        <select class="btn" id="selLevel"></select>
+      </div>
+    </section>
+  </main>
+  <div class="help closed" id="helpBox">
+    <h2>How to play (Rush Hour)</h2>
+    <b>Objective:</b> Drive the black <b>&#9733; car</b> out through the <b>EXIT</b> on the right edge of its row.<br>
+    <b>Controls:</b>
+    <ul>
+      <li>Cars (2 squares, dark grey) and trucks (3 squares, light grey) only move forwards or backwards along their length &mdash; never sideways.</li>
+      <li><b>Tap a vehicle</b> to select it (it turns white with a thick border). The squares it can reach are marked with arrows; <b>tap one</b> to slide it there.</li>
+      <li>Sliding one vehicle any distance counts as <b>one move</b>. The number in brackets is the fewest moves possible.</li>
+      <li><b>Hint</b> selects the vehicle for the next move of a shortest solution and marks its destination in black.</li>
+      <li>Undo steps back; Restart resets the level. Solved levels get a &#10003; in the list. Levels go Beginner &rarr; Intermediate &rarr; Advanced &rarr; Expert.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Levels: 36 chars row by row ('o' = empty, 'A' = target car, other letters = vehicles)
+  // followed by ':' and the optimal number of moves (verified offline by BFS).
+  var BANDS = [
+    { name: 'Beginner', levels: [/*B0*/
+      'ooooooooBoCoAABoCDoooooDoooooooooooo:4',
+      'ooooooooBBoCAADooCooDooooEEooooooooo:4',
+      'oooooooooooBoooAABoooooBooooCCooDDEE:5',
+      'ooBBBoooCDooAACDooooEFFoooEooooooooo:5',
+      'oooBBooooCCDoAAoEDooooEoooFFGGoooooo:5',
+      'ooBBCCooDDDEooAAFEooooFGoooHHGoooooG:6',
+      'oBBCCCooDEooAADEooooDooFoGHHoFoGoooo:7',
+      'oBBCCoooDEFFAADEoGooHHHGooooIIoooooo:7',
+      'ooBBBCooDooCAADoooEoooooEFFGGGoooooo:8',
+      'oooooBoooooBoAAooBooCCDDoEEFFFoGGHHH:8',
+      'oBBCCCooDEFoAADEFooGHIIooGHoooooJJoo:9',
+      'ooBBCoDDEECFGAAHoFGooHoFGoIIIoooJJKK:9'
+    ] },
+    { name: 'Intermediate', levels: [/*B1*/
+      'ooBBBCooDooCAADEooFFFEGGoooEoooooHHo:10',
+      'ooooBoCooDBECAADFEGHooFoGHIIJJoHoooo:10',
+      'ooBBBCooDDoCAAEFooooEFGGHHHFooooIIoo:11',
+      'ooBBoooCCCDoooAADEoooFDEoGGFHHoIIJJo:11',
+      'BoooooBoCCDDAAEooFooEooFooGGGFoHHIII:12',
+      'oBBCCooDDEFFAAGEHoooGoHIJJGKKIoLLooo:12',
+      'ooBCCDooBoEDAAFoEDooFoGGHIFoJJHIKKLL:13',
+      'oBCCDDoBEEFFoAAGooHHHGoIooJKKIooJLLo:13',
+      'oBBCCooDDEEFAAGHoFIIGHoooJKKLLoJoooo:14',
+      'ooBCCoooBoDEFGAADEFGHIIEooHJKKooHJLL:15',
+      'BCCoDDBEEFGGAAHFooIIHoJKoLMMJKoLNNNo:16',
+      'BBCCCooDDEEoAAFGoooHFGIIoHFJJKoLLLoK:17'
+    ] },
+    { name: 'Advanced', levels: [/*B2*/
+      'BBCooDEoCFFDEAAoGDHHooGoIIooJoKKLLJo:18',
+      'BCCDDDBEEFGGAAoFoHoIJJKHoILoKMNNLooM:18',
+      'oBBCCCoooDEEoAADoFGGHIIFoJHoKKoJHLLL:19',
+      'BCCCDoBoooDEFAAoGEFHIIGEoHoJKKoLLJoo:19',
+      'BooCCoBoDDEEAAFoGHIIFoGHooJJJHKKLLLo:20',
+      'BoCCDDBoEEFGHoAAFGHIIJJKLLLMoKNNoMoo:20',
+      'oBBBCDooEoCDAAEooFGHIJJFGHIoKKoLLooo:21',
+      'BBBCCDEFFFGDEHAAGoIHoJKKIoLJoMNNLJoM:21',
+      'oBBoCoDEEoCFDGAAoFHGIIIFHJJKLLMMoKNN:22',
+      'oooBBCDoEEFCDAAGFoHHIGFoJoIKLLJMMKNN:23',
+      'BBCDDDEoCFGGEAAFoHIIJKKHooJoLLooooMM:24',
+      'BBoCDEFooCDEFGAADHoGIJJHKoILLoKMMNNo:26'
+    ] },
+    { name: 'Expert', levels: [/*B3*/
+      'BBoCDDEooCooEAAFooGHHFIIGoJKKLooJMML:27',
+      'BBCCooDooEFFDAAEGHoIIIGHJJKooHLLKMMM:28',
+      'oBBBCDEFooCDEFoAAGEHHHoGooIJKKLLIJoo:29',
+      'oooBCCDEEBFoDAAGFHIJJGFHIoKLLoMMKooo:30',
+      'BCDDEoBCFGEoAAFGEHIIJKoHooJKoLoMMNNL:30',
+      'BBoCCoDEEFoGDAAFoGHHIFoooJIKKooJLLMM:31',
+      'BBBooCoDDEFCAAGEFHIoGJJHIoKKLLMMMNNo:31',
+      'BBBCCDooEFFDAAEGooHooGIIHJJGKLoMMMKL:33',
+      'BBBCCoooDEFFAADEoGHIIEJGHoKKJLMMMooL:33',
+      'BooCDDBEoCFGBEAAFGHHIooJKoILLJKoMMNN:35',
+      'BBooCoDoEECFDAAGCFHIJGKKHIJLLMooNNNM:36',
+      'BCCCoDBoEFFDAAEGHIoJJGHIoooKLLoMMKNN:41'
+    ] }
+  ];
+  var EXIT_ROW = 2, TIME_CAP = 1200, MAX_STATES = 65000;
+
+  var LEVELS = [], i, j;
+  for (i = 0; i < BANDS.length; i++) {
+    for (j = 0; j < BANDS[i].levels.length; j++) {
+      var parts = BANDS[i].levels[j].split(':');
+      LEVELS.push({ band: i, num: j + 1, board: parts[0], opt: parseInt(parts[1], 10) });
+    }
+  }
+
+  var lvl = 0, veh = [], pos = [], startPos = [], moves = 0, history = [], won = false;
+  var sel = -1, hintMove = null, busy = false, plan = null, cellS = 60;
+
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var selLevel = document.getElementById('selLevel');
+  var btnUndo = document.getElementById('btnUndo');
+  var btnHint = document.getElementById('btnHint');
+  var btnNext = document.getElementById('btnNext');
+  var helpBox = document.getElementById('helpBox');
+
+  function store(k, v) {
+    try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; }
+  }
+  function getBest(i) { var v = parseInt(store('rushhour.best.' + i), 10); return isNaN(v) ? null : v; }
+  function solvedMap() {
+    var s = store('rushhour.solved') || '', m = {}, a = String(s).split(','), k;
+    for (k = 0; k < a.length; k++) if (a[k] !== '') m[a[k]] = 1;
+    return m;
+  }
+  function markSolved(i) {
+    var m = solvedMap(), out = [], k;
+    m[i] = 1;
+    for (k in m) if (m.hasOwnProperty(k)) out.push(k);
+    store('rushhour.solved', out.join(','));
+  }
+
+  // ---------- core logic ----------
+  // Parse a 36-char level into vehicles [{h, len, fix, ch}] (index 0 = target car) and positions.
+  function parse(str) {
+    var cells = {}, order = [], k, c, v = [], p = [];
+    for (k = 0; k < 36; k++) {
+      c = str.charAt(k);
+      if (c === 'o' || c === '.') continue;
+      if (!cells[c]) { cells[c] = []; order.push(c); }
+      cells[c].push(k);
+    }
+    // target car first
+    order.sort(function (a, b) { return a === 'A' ? -1 : (b === 'A' ? 1 : (a < b ? -1 : 1)); });
+    for (k = 0; k < order.length; k++) {
+      var cs = cells[order[k]], h = Math.floor(cs[0] / 6) === Math.floor(cs[1] / 6);
+      v.push({ h: h, len: cs.length, fix: h ? Math.floor(cs[0] / 6) : cs[0] % 6, ch: order[k] });
+      p.push(h ? cs[0] % 6 : Math.floor(cs[0] / 6));
+    }
+    return { veh: v, pos: p };
+  }
+
+  function cellOf(v, p, k) { return v.h ? v.fix * 6 + p + k : (p + k) * 6 + v.fix; }
+
+  function occupancy(vs, ps) {
+    var occ = [], k, i;
+    for (k = 0; k < 36; k++) occ.push(-1);
+    for (i = 0; i < vs.length; i++) for (k = 0; k < vs[i].len; k++) occ[cellOf(vs[i], ps[i], k)] = i;
+    return occ;
+  }
+
+  // Range [lo, hi] of positions vehicle i can reach.
+  function range(vs, ps, occ, i) {
+    var v = vs[i], lo = ps[i], hi = ps[i];
+    while (lo > 0 && occ[cellOf(v, lo - 1, 0)] < 0) lo--;
+    while (hi + v.len < 6 && occ[cellOf(v, hi + v.len, 0)] < 0) hi++;
+    return [lo, hi];
+  }
+
+  function isWin(ps) { return ps[0] === 6 - 2; }
+
+  // A state is one number: vehicle positions as base-5 digits (vehicle 0 = most significant).
+  // BFS stores only these numbers plus parent links; a small open-addressing hash set
+  // (plain arrays, no Map) keeps it fast on old browsers.
+  var HBITS = 17, HSIZE = 1 << HBITS, HMASK = HSIZE - 1, HPRIME = 131063, QMAX = 70000;
+  // Buffers are allocated once and reused (typed arrays when the browser has them).
+  function buf(T, n) { return T ? new T(n) : []; }
+  var F64 = typeof Float64Array !== 'undefined' ? Float64Array : null;
+  var I32 = typeof Int32Array !== 'undefined' ? Int32Array : null;
+  var I8 = typeof Int8Array !== 'undefined' ? Int8Array : null;
+  var table = null, qKey, qPar, qVeh, qTo, qPos, sP, sCur, sOcc, sH, sL, sF;
+  function add(key) { // insert into the hash set; false if already present
+    var h = (key % HPRIME) & HMASK;
+    while (table[h] !== -1) { if (table[h] === key) return false; h = (h + 1) & HMASK; }
+    table[h] = key; return true;
+  }
+
+  // BFS for a shortest solution from ps. Returns {path: [[veh, newPos], ...]}, {timeout:true} or null.
+  function solve(vs, ps, deadline) {
+    if (isWin(ps)) return { path: [] };
+    var nV = vs.length, i, k, qLen = 0, head = 0;
+    if (!table) {
+      table = buf(F64, HSIZE); qKey = buf(F64, QMAX); qPos = buf(I8, QMAX * 16); qPar = buf(I32, QMAX); qVeh = buf(I32, QMAX); qTo = buf(I32, QMAX);
+      sP = buf(F64, 20); sCur = buf(I32, 20); sOcc = buf(I32, 36); sH = buf(I32, 20); sL = buf(I32, 20); sF = buf(I32, 20);
+    }
+    var P = sP, cur = sCur, occ = sOcc, vh = sH, vl = sL, vf = sF;
+    for (i = nV - 1, k = 1; i >= 0; i--, k *= 5) P[i] = k;
+    for (i = 0; i < HSIZE; i++) table[i] = -1;
+    // +0.5 keeps every key a non-integer double, so JIT type feedback stays stable
+    var key0 = 0.5;
+    for (i = 0; i < nV; i++) key0 += ps[i] * P[i];
+    add(key0);
+    qKey[0] = key0; qPar[0] = -1; qVeh[0] = -1; qTo[0] = -1; qLen = 1;
+    for (i = 0; i < nV; i++) qPos[i] = ps[i];
+    var key, lo, hi, t, nk, base, off, j;
+    for (i = 0; i < nV; i++) { vh[i] = vs[i].h ? 1 : 0; vl[i] = vs[i].len; vf[i] = vs[i].fix; }
+    while (head < qLen) {
+      if ((head & 511) === 0 && Date.now() > deadline) return { timeout: true };
+      if (qLen > MAX_STATES) return { timeout: true };
+      key = qKey[head]; off = head * nV;
+      for (i = 0; i < nV; i++) cur[i] = qPos[off + i];
+      for (k = 0; k < 36; k++) occ[k] = 0;
+      for (i = 0; i < nV; i++) {
+        if (vh[i]) { base = vf[i] * 6 + cur[i]; for (k = 0; k < vl[i]; k++) occ[base + k] = 1; }
+        else { base = cur[i] * 6 + vf[i]; for (k = 0; k < vl[i]; k++) occ[base + k * 6] = 1; }
+      }
+      for (i = 0; i < nV; i++) {
+        lo = cur[i]; hi = cur[i];
+        if (vh[i]) {
+          base = vf[i] * 6;
+          while (lo > 0 && !occ[base + lo - 1]) lo--;
+          while (hi + vl[i] < 6 && !occ[base + hi + vl[i]]) hi++;
+        } else {
+          base = vf[i];
+          while (lo > 0 && !occ[(lo - 1) * 6 + base]) lo--;
+          while (hi + vl[i] < 6 && !occ[(hi + vl[i]) * 6 + base]) hi++;
+        }
+        for (t = lo; t <= hi; t++) {
+          if (t === cur[i]) continue;
+          nk = key + (t - cur[i]) * P[i];
+          if (!add(nk)) continue;
+          qKey[qLen] = nk; qPar[qLen] = head; qVeh[qLen] = i; qTo[qLen] = t;
+          off = qLen * nV;
+          for (j = 0; j < nV; j++) qPos[off + j] = cur[j];
+          qPos[off + i] = t;
+          qLen++;
+          if (i === 0 && t === 4) {
+            var path = [], x = qLen - 1;
+            while (qPar[x] >= 0) { path.push([qVeh[x], qTo[x]]); x = qPar[x]; }
+            path.reverse();
+            return { path: path, states: qLen };
+          }
+        }
+      }
+      head++;
+    }
+    return null;
+  }
+
+  // ---------- UI ----------
+  function calcCellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor(Math.min((w - 40) / 6.8, (h - 220) / 6));
+    return Math.max(44, Math.min(110, s));
+  }
+
+  function levelName(i) {
+    var L = LEVELS[i];
+    return BANDS[L.band].name + ' ' + L.num + ' (' + L.opt + ')';
+  }
+
+  function fillSelect() {
+    var m = solvedMap(), html = '', k;
+    for (k = 0; k < LEVELS.length; k++) {
+      html += '<option value="' + k + '">' + levelName(k) + (m[k] ? ' ✓' : '') + '</option>';
+    }
+    selLevel.innerHTML = html;
+    selLevel.value = String(lvl);
+  }
+
+  function save() {
+    store('rushhour.lvl', String(lvl));
+    store('rushhour.game', won ? '' : (lvl + '|' + pos.join(',') + '|' + moves));
+  }
+
+  function loadLevel(i, resume) {
+    if (!(i >= 0 && i < LEVELS.length)) i = 0;
+    lvl = i;
+    var pz = parse(LEVELS[i].board);
+    veh = pz.veh; pos = pz.pos; startPos = pz.pos.slice();
+    moves = 0; history = []; won = false; sel = -1; hintMove = null; plan = null;
+    if (resume) {
+      var s = String(store('rushhour.game') || '').split('|');
+      if (s.length === 3 && parseInt(s[0], 10) === i) {
+        var p = s[1].split(','), ok = p.length === veh.length, k;
+        for (k = 0; ok && k < p.length; k++) { p[k] = parseInt(p[k], 10); if (isNaN(p[k]) || p[k] < 0 || p[k] + veh[k].len > 6) ok = false; }
+        if (ok) {
+          var occ = [], c;
+          for (c = 0; c < 36; c++) occ.push(0);
+          for (k = 0; ok && k < veh.length; k++) for (c = 0; c < veh[k].len; c++) { var x = cellOf(veh[k], p[k], c); if (occ[x]) ok = false; occ[x] = 1; }
+        }
+        if (ok && !isWin(p)) { pos = p; moves = parseInt(s[2], 10) || 0; }
+      }
+    }
+    selLevel.value = String(lvl);
+    save();
+    render();
+  }
+
+  function render(msg) {
+    var s = cellS = calcCellSize(), html = '', r, c, k, v, i;
+    boardEl.style.width = (6 * s) + 'px';
+    boardEl.style.height = (6 * s) + 'px';
+    boardEl.style.marginRight = Math.floor(s * 0.5) + 'px';
+    boardEl.style.marginLeft = Math.floor(s * 0.5) + 'px';
+    var occ = occupancy(veh, pos);
+    for (r = 0; r < 6; r++) for (c = 0; c < 6; c++) {
+      html += '<div class="cell" data-c="' + (r * 6 + c) + '" style="left:' + (c * s) + 'px;top:' + (r * s) + 'px;width:' + s + 'px;height:' + s + 'px"></div>';
+    }
+    // exit gap in the right wall + label
+    html += '<div class="exit" style="left:' + (6 * s) + 'px;top:' + (EXIT_ROW * s + 4) + 'px;width:4px;height:' + (s - 8) + 'px"></div>';
+    html += '<div class="exit-lbl" style="left:' + (6 * s + 6) + 'px;top:' + (EXIT_ROW * s + Math.floor(s * 0.25)) + 'px;font-size:' + Math.floor(s * 0.42) + 'px">&#9654;</div>';
+    html += '<div class="exit-lbl" style="left:' + (6 * s + 2) + 'px;top:' + (EXIT_ROW * s + Math.floor(s * 0.72)) + 'px;font-size:' + Math.max(9, Math.floor(s * 0.16)) + 'px">EXIT</div>';
+
+    for (i = 0; i < veh.length; i++) {
+      v = veh[i];
+      var x = v.h ? pos[i] : v.fix, y = v.h ? v.fix : pos[i];
+      var w = v.h ? v.len * s : s, h = v.h ? s : v.len * s;
+      var cls = 'veh' + (i === 0 ? ' red' : (v.len === 3 ? ' truck' : '')) + (i === sel ? ' sel' : '');
+      var label = i === 0 ? '&#9733;&#9654;' : '';
+      html += '<div class="' + cls + '" data-v="' + i + '" style="left:' + (x * s + 3) + 'px;top:' + (y * s + 3) + 'px;width:' + (w - 6) + 'px;height:' + (h - 6) +
+        'px;line-height:' + (h - 10) + 'px;font-size:' + Math.floor(s * 0.4) + 'px">' + label + '</div>';
+    }
+
+    // reachable squares for the selected vehicle
+    if (sel >= 0 && !won) {
+      v = veh[sel];
+      var rg = range(veh, pos, occ, sel), t;
+      for (t = rg[0]; t <= rg[1]; t++) {
+        if (t === pos[sel]) continue;
+        // mark the square that the leading end will occupy
+        var cellIdx = t < pos[sel] ? cellOf(v, t, 0) : cellOf(v, t, v.len - 1);
+        var cr = Math.floor(cellIdx / 6), cc = cellIdx % 6;
+        var arrow = v.h ? (t < pos[sel] ? '&#9664;' : '&#9654;') : (t < pos[sel] ? '&#9650;' : '&#9660;');
+        var isHint = hintMove && hintMove[0] === sel && hintMove[1] === t;
+        html += '<div class="tgt' + (isHint ? ' hint' : '') + '" data-t="' + t + '" style="left:' + (cc * s + 5) + 'px;top:' + (cr * s + 5) + 'px;width:' + (s - 10) +
+          'px;height:' + (s - 10) + 'px;line-height:' + (s - 14) + 'px;font-size:' + Math.floor(s * 0.38) + 'px">' + arrow + '</div>';
+      }
+    }
+    boardEl.innerHTML = html;
+
+    var L = LEVELS[lvl], best = getBest(lvl);
+    if (won) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'Solved in ' + moves + ' move' + (moves === 1 ? '' : 's') + '! (best possible: ' + L.opt + ')' +
+        (moves === L.opt ? ' Perfect!' : '') + (lvl < LEVELS.length - 1 ? ' Tap Next.' : '');
+    } else {
+      statusEl.className = 'status';
+      statusEl.innerHTML = msg || (levelName(lvl).replace(/ \(\d+\)$/, '') + ' &nbsp;&middot;&nbsp; Moves: ' + moves + ' (best possible: ' + L.opt + ')' +
+        (best !== null ? ' &nbsp;&middot;&nbsp; Your best: ' + best : ''));
+    }
+    btnUndo.disabled = history.length === 0 || won || busy;
+    btnHint.disabled = won || busy;
+    btnNext.disabled = lvl >= LEVELS.length - 1;
+    btnNext.className = won ? 'btn on' : 'btn';
+  }
+
+  function moveVehicle(i, t) {
+    if (won || busy) return false;
+    var occ = occupancy(veh, pos), rg = range(veh, pos, occ, i);
+    if (t === pos[i] || t < rg[0] || t > rg[1]) return false;
+    history.push({ p: pos.slice(), m: moves });
+    pos[i] = t;
+    moves++;
+    hintMove = null;
+    sel = (i === 0 && isWin(pos)) ? -1 : sel;
+    if (isWin(pos)) {
+      won = true; sel = -1;
+      var b = getBest(lvl);
+      if (b === null || moves < b) store('rushhour.best.' + lvl, String(moves));
+      markSolved(lvl);
+      fillSelect();
+    }
+    save();
+    render();
+    return true;
+  }
+
+  function undo() {
+    if (!history.length || won || busy) return;
+    var h = history.pop();
+    pos = h.p; moves = h.m; hintMove = null;
+    save(); render();
+  }
+
+  function onBoardClick(e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement, a;
+    if (won || busy) return;
+    while (t && t !== boardEl) {
+      a = t.getAttribute ? t.getAttribute('data-t') : null;
+      if (a !== null && sel >= 0) { moveVehicle(sel, parseInt(a, 10)); return; }
+      a = t.getAttribute ? t.getAttribute('data-v') : null;
+      if (a !== null) {
+        var vi = parseInt(a, 10);
+        sel = (sel === vi) ? -1 : vi;
+        if (!hintMove || hintMove[0] !== sel) hintMove = null;
+        render();
+        return;
+      }
+      a = t.getAttribute ? t.getAttribute('data-c') : null;
+      if (a !== null) { tapCell(parseInt(a, 10)); return; }
+      t = t.parentNode;
+    }
+  }
+
+  // Tapping an empty square: move the selected vehicle there if it is in line and reachable.
+  function tapCell(c) {
+    if (sel < 0) return;
+    var v = veh[sel], r = Math.floor(c / 6), col = c % 6, along, t;
+    if (v.h) { if (r !== v.fix) { sel = -1; render(); return; } along = col; }
+    else { if (col !== v.fix) { sel = -1; render(); return; } along = r; }
+    t = along < pos[sel] ? along : along - v.len + 1;
+    if (!moveVehicle(sel, t)) { sel = -1; render(); }
+  }
+
+  function hint() {
+    if (won || busy) return;
+    var key = pos.join(',');
+    if (plan && plan[key]) { showHint(plan[key][0], plan[key][1]); return; }
+    busy = true; sel = -1;
+    render('Working&hellip;');
+    setTimeout(function () {
+      var res = solve(veh, pos, Date.now() + TIME_CAP);
+      busy = false;
+      if (!res || res.timeout || !res.path.length) {
+        render(res && res.timeout ? 'Hint took too long here &mdash; try Undo or Restart.' : 'No solution from here &mdash; try Undo or Restart.');
+        return;
+      }
+      // cache the whole path so repeated hints are instant while it is followed
+      plan = {};
+      var p = pos.slice(), k;
+      for (k = 0; k < res.path.length; k++) {
+        plan[p.join(',')] = [res.path[k][0], res.path[k][1], res.path.length - k];
+        p[res.path[k][0]] = res.path[k][1];
+      }
+      showHint(res.path[0][0], res.path[0][1]);
+    }, 50);
+  }
+  function showHint(vi, t) {
+    var left = plan[pos.join(',')][2];
+    sel = vi; hintMove = [vi, t];
+    render('Hint: slide the highlighted ' + (vi === 0 ? '&#9733; car' : (veh[vi].len === 3 ? 'truck' : 'car')) +
+      ' to the black square. ' + left + ' move' + (left === 1 ? '' : 's') + ' to go.');
+  }
+
+  boardEl.onclick = onBoardClick;
+  btnUndo.onclick = undo;
+  document.getElementById('btnRestart').onclick = function () { if (!busy) { store('rushhour.game', ''); loadLevel(lvl, false); } };
+  btnHint.onclick = hint;
+  btnNext.onclick = function () { if (!busy && lvl < LEVELS.length - 1) loadLevel(lvl + 1, false); };
+  document.getElementById('btnRules').onclick = function () {
+    helpBox.className = (helpBox.className === 'help closed') ? 'help' : 'help closed';
+  };
+  selLevel.onchange = function () {
+    if (busy) { selLevel.value = String(lvl); return; }
+    loadLevel(parseInt(selLevel.value, 10), false);
+  };
+  window.onresize = function () { render(); };
+
+  if (window.__kgTest) window.__kgTest.rush = {
+    LEVELS: LEVELS, parse: parse, occupancy: occupancy, range: range, solve: solve, isWin: isWin,
+    loadLevel: loadLevel, moveVehicle: moveVehicle, undo: undo, hint: hint, tapCell: tapCell,
+    select: function (i) { sel = i; render(); },
+    state: function () { return { lvl: lvl, pos: pos, moves: moves, won: won, sel: sel, hintMove: hintMove, history: history.length, veh: veh }; }
+  };
+
+  var saved = parseInt(store('rushhour.lvl'), 10);
+  if (isNaN(saved)) saved = 0;
+  lvl = saved;
+  fillSelect();
+  loadLevel(saved, true);
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className.indexOf('help') >= 0) setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    h.onclick = function () { box.className = box.className.indexOf('closed') >= 0 ? 'help' : 'help closed'; };
+  }
+})();
+</script>
+</body>
+</html>

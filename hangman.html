@@ -449,7 +449,7 @@ table.kb td { padding: 0; }
 /* Shared: fold the "How to play" box; tap its heading to open/close. */
 (function () {
   var ds = document.getElementsByTagName('div'), i;
-  for (i = 0; i < ds.length; i++) if (ds[i].className === 'help') setup(ds[i]);
+  for (i = 0; i < ds.length; i++) if (ds[i].className.indexOf('help') === 0) setup(ds[i]);
   function setup(box) {
     var h = box.getElementsByTagName('h2')[0];
     if (!h) return;

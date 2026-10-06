@@ -156,8 +156,9 @@ table.board td { border: 0; padding: 0; cursor: pointer; }
   }
 
   // ---------- rules ----------
+  // Returns every stone of each five-or-more line through i (all directions), or null.
   function findWin(b, i, p) {
-    var r0 = Math.floor(i / N), c0 = i % N, d, k, r, c, line;
+    var r0 = Math.floor(i / N), c0 = i % N, d, k, r, c, line, all = null;
     for (d = 0; d < 4; d++) {
       line = [i];
       for (k = 1; ; k++) {
@@ -170,9 +171,9 @@ table.board td { border: 0; padding: 0; cursor: pointer; }
         if (r < 0 || r >= N || c < 0 || c >= N || b[r * N + c] !== p) break;
         line.push(r * N + c);
       }
-      if (line.length >= 5) return line;
+      if (line.length >= 5) all = all ? all.concat(line.slice(1)) : line;
     }
-    return null;
+    return all;
   }
   function full(b) { for (var k = 0; k < b.length; k++) if (b[k] === 0) return false; return true; }
 
@@ -272,6 +273,7 @@ table.board td { border: 0; padding: 0; cursor: pointer; }
     return out;
   }
   function chooseMove(b, p) {
+    var deadline = new Date().getTime() + 1000;
     var cs = candidates(b), sc = [], k, a, d, easy = level === 1;
     for (k = 0; k < cs.length; k++) {
       a = attack(b, cs[k], p);
@@ -283,9 +285,11 @@ table.board td { border: 0; padding: 0; cursor: pointer; }
     }
     sc.sort(function (x, y) { return y.v - x.v; });
     if (easy || sc.length === 1 || sc[0].a >= 5e6 || sc[0].v >= 5e7) return sc[0].i;
-    // Hard: look one ply ahead on the best few candidates.
+    // Hard: look one ply ahead on the best few candidates (time-capped safety net:
+    // stop early and keep the best candidate examined so far).
     var best = sc[0].i, bestV = -Infinity, top = Math.min(6, sc.length), j, m, opp, os, forced, mine;
     for (k = 0; k < top; k++) {
+      if (k && new Date().getTime() > deadline) break;
       m = sc[k].i;
       b[m] = p;
       var cs2 = candidates(b);
@@ -403,7 +407,14 @@ table.board td { border: 0; padding: 0; cursor: pointer; }
       else msg = 'Your move (' + name(turn) + ').';
     }
     statusEl.innerHTML = msg;
-    document.getElementById('btnUndo').disabled = history.length === 0;
+    document.getElementById('btnUndo').disabled = !canUndo();
+  }
+
+  function canUndo() {
+    if (!history.length) return false;
+    if (mode === '2') return true;
+    for (var j = 0; j < history.length; j++) if (isHuman(history[j].t)) return true;
+    return false;
   }
 
   boardEl.onclick = function (e) {
@@ -416,7 +427,7 @@ table.board td { border: 0; padding: 0; cursor: pointer; }
   };
 
   document.getElementById('btnUndo').onclick = function () {
-    if (!history.length) return;
+    if (!canUndo()) return;
     token++; busy = false;
     var s;
     do { s = history.pop(); } while (history.length && mode !== '2' && !isHuman(s.t));

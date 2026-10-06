@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Dou Shou Qi</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.app-container {
+  width: 100%; max-width: 680px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.main-layout {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%;
+}
+.board-column {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%;
+}
+.bottom-menu {
+  display: flex; flex-direction: column; gap: 6px; width: 100%;
+}
+.action-bar-grid {
+  display: flex; flex-wrap: wrap; gap: 6px; width: 100%; justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0; min-width: 60px; margin: 0;
+}
+.match-setup-row {
+  display: flex; gap: 6px; width: 100%; justify-content: center;
+}
+.match-setup-row select.btn {
+  flex: 1 1 0; min-width: 0; margin: 0;
+}
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 48px; min-height: 38px; line-height: 34px;
+  padding: 0 10px; margin: 2px;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 16px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 1px; top: 1px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 32px 0 10px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 16px; line-height: 1.25; padding: 6px 10px; min-height: 22px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px; width: 100%; box-sizing: border-box;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.wrap { text-align: center; padding: 6px 0 4px; width: 100%; }
+.help {
+  font-size: 15px; line-height: 1.4; margin: 6px 0 16px; padding: 0 12px 10px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 40px; padding-bottom: 0; }
+.help h2 {
+  font-size: 16px; margin: 0 -12px 6px; padding: 0 12px; height: 40px; line-height: 40px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "▴"; float: right; font-size: 18px; }
+.help.closed h2:after { content: "+"; }
+/* ===== Game specific ===== */
+table.board { border-collapse: collapse; margin: 0 auto; border: 3px solid #000; }
+table.board td { padding: 0; border: 1px solid #000; cursor: pointer; }
+.sq { position: relative; overflow: hidden; background: #fff; }
+.sq.water { background: #ddd; }
+.tg { position: absolute; left: 0; width: 100%; display: block; text-align: center; color: #999; white-space: nowrap; }
+.tg.den { color: #888; font-family: "STKaiti", "KaiTi", "SimSun", "Songti SC", serif; font-weight: bold; }
+.tg.dl { color: #666; font-weight: bold; }
+.dg { position: absolute; display: block; height: 2px; background: #aaa; font-size: 0; line-height: 0;
+  -webkit-transform-origin: 0 50%; transform-origin: 0 50%; }
+.ct { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+.pc { position: absolute; left: 50%; top: 50%; display: block; box-sizing: border-box; -webkit-box-sizing: border-box;
+  border-radius: 50%; text-align: center; font-weight: bold; z-index: 2;
+  font-family: "STKaiti", "KaiTi", "SimSun", "Songti SC", serif; }
+.pc.en { font-family: Georgia, "Times New Roman", serif; }
+.pc.w { background: #fff; border: 4px solid #000; color: #000; }
+.pc.b { background: #000; border: 4px solid #000; color: #fff; }
+.pc.w.sel { background: #000; color: #fff; }
+.pc.b.sel { background: #fff; color: #000; }
+.rk { position: absolute; left: 0; width: 100%; display: block; text-align: center;
+  font-family: Georgia, "Times New Roman", serif; font-weight: bold; }
+.box { position: absolute; display: block; box-sizing: border-box; -webkit-box-sizing: border-box; z-index: 1; }
+.box.sel { border: 4px solid #000; }
+.box.last { border: 2px dashed #000; }
+.dot { position: absolute; display: block; width: 18px; height: 18px; z-index: 3;
+  background: #000; border: 2px solid #fff; border-radius: 50%; }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status"></div>
+      <div class="wrap"><table class="board" id="board"></table></div>
+    </section>
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnUndo">Undo</button>
+        <button class="btn" id="btnNew">New</button>
+        <button class="btn" id="btnRules">Rules</button>
+      </div>
+      <div class="match-setup-row">
+        <select class="btn" id="selMode">
+          <option value="cpu" selected>You vs Computer</option>
+          <option value="cpufirst">Computer first</option>
+          <option value="two">Two Players</option>
+        </select>
+        <select class="btn" id="selLevel">
+          <option value="1">Easy</option>
+          <option value="2" selected>Medium</option>
+          <option value="3">Hard</option>
+        </select>
+        <select class="btn" id="selLabels">
+          <option value="zh" selected>Labels: Chinese</option>
+          <option value="en">Labels: English</option>
+        </select>
+      </div>
+    </section>
+  </main>
+  <div class="help closed" id="helpBox">
+    <h2>How to play (Dou Shou Qi / Jungle)</h2>
+    <b>Board:</b> 7 &times; 9 squares. Each side has a <b>Den</b> (穴) in the middle of its back row, guarded by three
+    <b>Traps</b> (squares marked &times;) beside and in front of it. The two grey <b>Rivers</b> (&asymp;) fill the middle.<br>
+    <b>Pieces</b> (rank): 象 Elephant 8, 狮 Lion 7, 虎 Tiger 6, 豹 Leopard 5, 狼 Wolf 4, 狗 Dog 3, 猫 Cat 2, 鼠 Rat 1.
+    White discs (bottom) are yours and move first; Black discs belong to the top player.<br>
+    <b>Moving:</b> one square up, down, left or right. Tap a piece, then a dotted square.
+    Only the <b>Rat</b> may swim in the river. The <b>Lion</b> and <b>Tiger</b> may leap straight across a river
+    (sideways or lengthways) to the first land square, capturing there if allowed &mdash; but not if any Rat is in the
+    water on the way.<br>
+    <b>Capturing:</b> a piece captures an enemy of equal or lower rank by moving onto it. Exception: the Rat captures
+    the Elephant, and the Elephant cannot capture the Rat. A Rat in the water cannot capture a piece on land, and no
+    land piece can capture it; a Rat may capture the other Rat in the water. A Rat on land may capture a Rat on land.<br>
+    <b>Traps:</b> an enemy piece standing in one of <i>your</i> traps has rank 0, so any of your pieces may capture it.
+    Your own traps do not weaken your own pieces.<br>
+    A piece may not enter its own Den.<br>
+    <b>Winning:</b> move any piece into the opponent's Den, capture all of the opponent's pieces, or leave the opponent
+    with no legal move.<br>
+    <b>Draws:</b> the same position with the same player to move occurring three times, or 100 moves in a row (50 each)
+    without a capture.<br>
+    The last move is marked with dashed boxes. Undo takes back your last move.
+  </div>
+</div>
+<script>
+(function () {
+  var BOT = 1, TOP = -1, HUMAN = BOT, AI = TOP;
+  var RAT = 1, CAT = 2, DOG = 3, WOLF = 4, LEOP = 5, TIGER = 6, LION = 7, ELE = 8;
+  var W = 7, H = 9, N = 63;
+  var ZH = ['', '鼠', '猫', '狗', '狼', '豹', '虎', '狮', '象'];
+  var EN = ['', 'Rat', 'Cat', 'Dog', 'Wolf', 'Leop', 'Tigr', 'Lion', 'Ele'];
+  var VAL = [0, 330, 220, 290, 360, 450, 820, 900, 1000];
+  var WIN = 100000, INF = 1000000;
+
+  // ---------- Terrain ----------
+  // Index i = row * 7 + col, (col, row) from the bottom-left. Row 0 = bottom player's back row.
+  var WATER = [], TRAP = [], DEN = [], STEP = [], JTO = [], JPATH = [], DIST = [[], []];
+  var DC = [0, 0, -1, 1], DR = [1, -1, 0, 0];
+  (function () {
+    var i, c, r, d, cc, rr, path, j;
+    for (i = 0; i < N; i++) { WATER.push(0); TRAP.push(0); DEN.push(0); }
+    for (r = 3; r <= 5; r++) { WATER[r * W + 1] = 1; WATER[r * W + 2] = 1; WATER[r * W + 4] = 1; WATER[r * W + 5] = 1; }
+    DEN[3] = BOT; DEN[8 * W + 3] = TOP;
+    TRAP[2] = BOT; TRAP[4] = BOT; TRAP[W + 3] = BOT;
+    TRAP[8 * W + 2] = TOP; TRAP[8 * W + 4] = TOP; TRAP[7 * W + 3] = TOP;
+    for (i = 0; i < N; i++) {
+      c = i % W; r = (i / W) | 0;
+      DIST[0].push(Math.abs(c - 3) + Math.abs(r - 8));   // distance to the top den (target of BOT)
+      DIST[1].push(Math.abs(c - 3) + r);                 // distance to the bottom den (target of TOP)
+      for (d = 0; d < 4; d++) {
+        cc = c + DC[d]; rr = r + DR[d];
+        STEP.push(cc >= 0 && cc < W && rr >= 0 && rr < H ? rr * W + cc : -1);
+        path = []; j = -1;
+        if (!WATER[i] && STEP[i * 4 + d] >= 0 && WATER[STEP[i * 4 + d]]) {
+          while (cc >= 0 && cc < W && rr >= 0 && rr < H && WATER[rr * W + cc]) { path.push(rr * W + cc); cc += DC[d]; rr += DR[d]; }
+          if (cc >= 0 && cc < W && rr >= 0 && rr < H) j = rr * W + cc;
+        }
+        JTO.push(j); JPATH.push(path);
+      }
+    }
+  })();
+  function distToEnemyDen(i, side) { return side > 0 ? DIST[0][i] : DIST[1][i]; }
+
+  var board = [], turn = BOT, history = [], legal = [], sel = -1, targets = [];
+  var lastFrom = -1, lastTo = -1, quiet = 0, keys = [];
+  var over = false, overMsg = '', thinking = false, timer = null, note = '';
+  var mode = 'cpu', level = 2, labels = 'zh', cells = [], S = 50;
+
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var selMode = document.getElementById('selMode');
+  var selLevel = document.getElementById('selLevel');
+  var selLabels = document.getElementById('selLabels');
+  var btnUndo = document.getElementById('btnUndo');
+  var helpBox = document.getElementById('helpBox');
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  function cellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var s = Math.floor(Math.min((w - 30) / W, (h - 200) / H));
+    return Math.max(40, Math.min(90, s));
+  }
+
+  // ---------- Rules ----------
+  // Positive = bottom player's piece (rank), negative = top player's piece.
+  function initBoard() {
+    var b = [], i, k, setup = [[LION, 0, 0], [TIGER, 6, 0], [DOG, 1, 1], [CAT, 5, 1], [RAT, 0, 2], [LEOP, 2, 2], [WOLF, 4, 2], [ELE, 6, 2]];
+    for (i = 0; i < N; i++) b.push(0);
+    for (k = 0; k < setup.length; k++) {
+      i = setup[k][2] * W + setup[k][1];
+      b[i] = setup[k][0];
+      b[N - 1 - i] = -setup[k][0];        // 180-degree rotation
+    }
+    return b;
+  }
+
+  // Can a piece of rank a (owned by side) on square f capture an enemy of rank d on square t?
+  function canCapture(f, t, a, d, side) {
+    if (WATER[f] !== WATER[t]) {
+      if (WATER[f]) return false;          // rat in the water cannot capture on land
+      return d === RAT;                     // a rat entering the water may only take the other rat
+    }
+    if (TRAP[t] === side) return true;      // enemy in my trap has rank 0
+    if (a === RAT && d === ELE) return true;
+    if (a === ELE && d === RAT) return false;
+    return a >= d;
+  }
+
+  // Moves for side; encoded (from << 6) | to. tact = only captures and den entries.
+  function gen(b, side, tact) {
+    var out = [], i, v, t, d, j, p, k, w, blocked;
+    for (i = 0; i < N; i++) {
+      v = b[i];
+      if (v * side <= 0) continue;
+      t = v > 0 ? v : -v;
+      for (d = 0; d < 4; d++) {
+        j = STEP[i * 4 + d];
+        if (j < 0) continue;
+        if (WATER[j] && t !== RAT) {
+          if (t !== LION && t !== TIGER) continue;
+          p = JPATH[i * 4 + d]; blocked = false;
+          for (k = 0; k < p.length; k++) if (b[p[k]] !== 0) { blocked = true; break; }
+          if (blocked) continue;
+          j = JTO[i * 4 + d];
+          if (j < 0) continue;
+        }
+        if (DEN[j] === side) continue;
+        w = b[j];
+        if (w * side > 0) continue;
+        if (w !== 0) { if (!canCapture(i, j, t, w > 0 ? w : -w, side)) continue; }
+        else if (tact && DEN[j] !== -side) continue;
+        out.push((i << 6) | j);
+      }
+    }
+    return out;
+  }
+
+  function countPieces(b, side) { var n = 0, i; for (i = 0; i < N; i++) if (b[i] * side > 0) n++; return n; }
+
+  // ---------- Computer player ----------
+  // Score from the bottom player's point of view.
+  function evaluate(b) {
+    var s = 0, i, v, t, side, x, dd, eleB = false, eleT = false, defB = 0, defT = 0, ownD;
+    for (i = 0; i < N; i++) { if (b[i] === ELE) eleB = true; else if (b[i] === -ELE) eleT = true; }
+    for (i = 0; i < N; i++) {
+      v = b[i];
+      if (!v) continue;
+      if (v > 0) { side = 1; t = v; } else { side = -1; t = -v; }
+      x = VAL[t];
+      if (t === RAT && (side > 0 ? eleT : eleB)) x += 60;
+      dd = distToEnemyDen(i, side);
+      // advancement toward the enemy den, strongest close to it
+      x += (11 - dd) * (t >= LEOP ? 18 : 8);
+      if (dd === 1) x += 220; else if (dd === 2) x += 90; else if (dd === 3) x += 35;
+      if (TRAP[i] === -side) x -= 30;           // standing in an enemy trap is risky
+      ownD = distToEnemyDen(i, -side);          // distance to own den
+      if (ownD <= 2) { if (side > 0) defB++; else defT++; }
+      s += side * x;
+    }
+    if (defB > 2) defB = 2; if (defT > 2) defT = 2;
+    s += (defB - defT) * 25;
+    return s;
+  }
+
+  var deadline = 0, nodes = 0, nodeCap = 0, aborted = false, killers = [], lastDepth = 0;
+
+  // Sorts ms in place (lists are short, so an insertion sort is cheapest): previous best, den entries,
+  // captures (most valuable victim first), killer moves, then the rest.
+  function orderMoves(b, ms, first, ply) {
+    var sc = [], n = ms.length, k, j, m, s, cap, t, kl = killers[ply], x;
+    for (k = 0; k < n; k++) {
+      m = ms[k]; t = m & 63; cap = b[t];
+      if (m === first) s = 1e7;
+      else if (DEN[t]) s = 1e6;
+      else if (cap) { x = b[m >> 6]; s = 100000 + (cap > 0 ? cap : -cap) * 100 - (x > 0 ? x : -x); }
+      else if (kl && m === kl[0]) s = 5000;
+      else if (kl && m === kl[1]) s = 4000;
+      else s = TRAP[t] ? 10 : 0;
+      j = k - 1;
+      while (j >= 0 && sc[j] < s) { sc[j + 1] = sc[j]; ms[j + 1] = ms[j]; j--; }
+      sc[j + 1] = s; ms[j + 1] = m;
+    }
+    return ms;
+  }
+
+  function tick() {
+    nodes++;
+    if ((nodes & 255) === 0 && (nodes > nodeCap || Date.now() > deadline)) aborted = true;
+  }
+
+  function hasDenMove(ms) { var k; for (k = 0; k < ms.length; k++) if (DEN[ms[k] & 63]) return true; return false; }
+
+  function quies(b, side, alpha, beta, ply, qd) {
+    tick();
+    if (aborted) return 0;
+    var ms = gen(b, side, true), stand, k, m, f, t, cap, val;
+    if (hasDenMove(ms)) return WIN - ply;
+    stand = side * evaluate(b);
+    if (stand >= beta) return stand;
+    if (stand > alpha) alpha = stand;
+    if (qd >= 6) return stand;
+    ms = orderMoves(b, ms, -1, 60);
+    for (k = 0; k < ms.length; k++) {
+      m = ms[k]; f = m >> 6; t = m & 63; cap = b[t];
+      b[t] = b[f]; b[f] = 0;
+      val = -quies(b, -side, -beta, -alpha, ply + 1, qd + 1);
+      b[f] = b[t]; b[t] = cap;
+      if (aborted) return 0;
+      if (val >= beta) return val;
+      if (val > alpha) alpha = val;
+    }
+    return alpha;
+  }
+
+  // Transposition table indexed by a Zobrist hash (two 31-bit halves: one picks the slot, one verifies it).
+  var TT_SIZE = 32768, TT_MASK = TT_SIZE - 1, Z1 = [], Z2 = [], ZS1 = 0, ZS2 = 0;
+  var ttK = [], ttD = [], ttV = [], ttF = [], ttM = [];
+  (function () {
+    var seed = 12345, i;
+    function rnd() { seed = (seed * 1103515245 + 12345) % 2147483648; return seed; }
+    for (i = 0; i < N * 17; i++) { Z1.push(rnd()); Z2.push(rnd()); }
+    ZS1 = rnd(); ZS2 = rnd();
+  })();
+  function clearTT() { var i; ttK = []; ttD = []; ttV = []; ttF = []; ttM = []; for (i = 0; i < TT_SIZE; i++) { ttK.push(-1); ttD.push(0); ttV.push(0); ttF.push(0); ttM.push(0); } }
+  function hashOf(b, side, z) {
+    var h = side > 0 ? 0 : (z === Z1 ? ZS1 : ZS2), i;
+    for (i = 0; i < N; i++) if (b[i]) h ^= z[i * 17 + b[i] + 8];
+    return h;
+  }
+
+  function negamax(b, side, depth, alpha, beta, ply, h1, h2) {
+    tick();
+    if (aborted) return 0;
+    var idx = h1 & TT_MASK, ttMove = -1, v, a0 = alpha;
+    if (ttK[idx] === h2) {
+      ttMove = ttM[idx];
+      if (ttD[idx] >= depth && depth > 0) {
+        v = ttV[idx];
+        if (v > WIN - 500) v -= ply; else if (v < -WIN + 500) v += ply;
+        if (ttF[idx] === 0) return v;
+        if (ttF[idx] === 1 && v >= beta) return v;
+        if (ttF[idx] === 2 && v <= alpha) return v;
+      }
+    }
+    var ms = gen(b, side, false), k, m, f, t, cap, val, best = -INF, bestM = 0, kl, pv, n1, n2, zf, zt;
+    if (!ms.length) return -WIN + ply;          // no move (or no pieces): side to move loses
+    if (hasDenMove(ms)) return WIN - ply;
+    if (depth <= 0) return quies(b, side, alpha, beta, ply, 0);
+    ms = orderMoves(b, ms, ttMove, ply);
+    for (k = 0; k < ms.length; k++) {
+      m = ms[k]; f = m >> 6; t = m & 63; cap = b[t]; pv = b[f];
+      zf = f * 17 + pv + 8; zt = t * 17 + pv + 8;
+      n1 = h1 ^ ZS1 ^ Z1[zf] ^ Z1[zt]; n2 = h2 ^ ZS2 ^ Z2[zf] ^ Z2[zt];
+      if (cap) { n1 ^= Z1[t * 17 + cap + 8]; n2 ^= Z2[t * 17 + cap + 8]; }
+      b[t] = pv; b[f] = 0;
+      val = -negamax(b, -side, depth - 1, -beta, -alpha, ply + 1, n1, n2);
+      b[f] = pv; b[t] = cap;
+      if (aborted) return 0;
+      if (val > best) { best = val; bestM = m; }
+      if (val > alpha) alpha = val;
+      if (alpha >= beta) {
+        if (!cap) {
+          kl = killers[ply] || (killers[ply] = [0, 0]);
+          if (kl[0] !== m) { kl[1] = kl[0]; kl[0] = m; }
+        }
+        break;
+      }
+    }
+    v = best;
+    if (v > WIN - 500) v += ply; else if (v < -WIN + 500) v -= ply;
+    ttK[idx] = h2; ttD[idx] = depth; ttV[idx] = v; ttM[idx] = bestM;
+    ttF[idx] = best >= beta ? 1 : (best <= a0 ? 2 : 0);
+    return best;
+  }
+
+  function keyOf(b, side) { return b.join(',') + '/' + side; }
+  function seenCount(key) { var n = 0, k; for (k = 0; k < keys.length; k++) if (keys[k] === key) n++; return n; }
+
+  // Every move is bounded by a wall-clock cap (Kindle is ~20x slower than a desktop); depth and node budgets keep
+  // a desktop move small. The best move of the last completed depth (or of a partial one, which searches the
+  // previous best first) is kept.
+  function chooseMove(b, side) {
+    var moves = gen(b, side, false), maxDepth = level === 1 ? 2 : (level === 2 ? 4 : 8);
+    var limit = level === 1 ? 400 : (level === 2 ? 600 : 1500), noise = level === 1 ? 120 : 0;
+    var best = moves[0], d, k, m, f, t, cap, val, bestVal, bestM, alpha, reps = {}, r, h1, h2, pv, zf, zt, n1, n2;
+    if (moves.length === 1) return best;
+    for (k = 0; k < moves.length; k++) if (DEN[moves[k] & 63]) return moves[k];
+    b = b.slice();
+    for (k = 0; k < moves.length; k++) {
+      m = moves[k]; f = m >> 6; t = m & 63; cap = b[t];
+      b[t] = b[f]; b[f] = 0;
+      reps[m] = cap ? 0 : seenCount(keyOf(b, -side));
+      b[f] = b[t]; b[t] = cap;
+    }
+    killers = []; lastDepth = 0;
+    if (!ttK.length) clearTT();
+    h1 = hashOf(b, side, Z1); h2 = hashOf(b, side, Z2);
+    deadline = Date.now() + limit; nodes = 0; aborted = false;
+    nodeCap = level === 1 ? 2500 : (level === 2 ? 9000 : 24000);
+    for (d = 1; d <= maxDepth; d++) {
+      moves = orderMoves(b, moves, best, 0);
+      bestVal = -INF; bestM = -1; alpha = -INF;
+      for (k = 0; k < moves.length; k++) {
+        m = moves[k]; f = m >> 6; t = m & 63; cap = b[t]; pv = b[f];
+        zf = f * 17 + pv + 8; zt = t * 17 + pv + 8;
+        n1 = h1 ^ ZS1 ^ Z1[zf] ^ Z1[zt]; n2 = h2 ^ ZS2 ^ Z2[zf] ^ Z2[zt];
+        if (cap) { n1 ^= Z1[t * 17 + cap + 8]; n2 ^= Z2[t * 17 + cap + 8]; }
+        b[t] = pv; b[f] = 0;
+        val = -negamax(b, -side, d - 1, -INF, noise ? INF : -alpha, 1, n1, n2);
+        b[f] = pv; b[t] = cap;
+        if (aborted) break;
+        // a third repetition is a draw: avoid repeating when ahead, accept it when behind
+        r = reps[m];
+        if (r >= 2) val = 0;
+        else if (r === 1 && val > 0) val -= 20 + (val >> 3);
+        if (noise) val += Math.floor(Math.random() * noise);
+        if (val > bestVal) { bestVal = val; bestM = m; }
+        if (val > alpha) alpha = val;
+      }
+      if (bestM >= 0) best = bestM;
+      if (!aborted) lastDepth = d;
+      if (aborted || bestVal > WIN - 100 || bestVal < -WIN + 100) break;
+    }
+    return best;
+  }
+
+  // ---------- Game flow ----------
+  function sideName(s) { return s === BOT ? 'White' : 'Black'; }
+  function snapshot() { return { b: board.slice(), turn: turn, lf: lastFrom, lt: lastTo, q: quiet, nk: keys.length - 1 }; }
+  function isHumanTurn() { return mode === 'two' || turn === HUMAN; }
+  function winText(winner, how) {
+    if (mode !== 'two') return how + (winner === HUMAN ? 'You win!' : 'Computer wins.');
+    return how + sideName(winner) + ' wins!';
+  }
+
+  function startTurn() {
+    legal = gen(board, turn, false);
+    sel = -1; targets = [];
+    var key = keyOf(board, turn), reps = seenCount(key), k, denWinner = 0;
+    keys.push(key);
+    for (k = 0; k < N; k++) if (DEN[k] && board[k]) denWinner = board[k] > 0 ? BOT : TOP;
+    if (denWinner) {
+      over = true; overMsg = winText(denWinner, 'Den reached! ');
+    } else if (!legal.length) {
+      over = true;
+      overMsg = winText(-turn, countPieces(board, turn) ? 'No legal move! ' : 'All pieces captured! ');
+    } else if (reps >= 2) {
+      over = true; overMsg = 'Draw by threefold repetition.';
+    } else if (quiet >= 100) {
+      over = true; overMsg = 'Draw (100 moves without a capture).';
+    }
+    if (over) overMsg += ' Tap New to play again.';
+    render();
+    if (!over && !isHumanTurn()) computerTurn();
+  }
+
+  function doMove(m) {
+    history.push(snapshot());
+    var f = m >> 6, t = m & 63;
+    if (board[t]) quiet = 0; else quiet++;
+    board[t] = board[f]; board[f] = 0;
+    lastFrom = f; lastTo = t;
+    turn = -turn; note = '';
+    startTurn();
+  }
+
+  function computerTurn() {
+    thinking = true;
+    render();
+    timer = setTimeout(function () {
+      timer = null;
+      var m = chooseMove(board, turn);
+      thinking = false;
+      doMove(m);
+    }, 50);
+  }
+
+  function newGame() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    mode = selMode.value; level = parseInt(selLevel.value, 10);
+    board = initBoard(); turn = mode === 'cpufirst' ? AI : BOT; history = []; keys = [];
+    lastFrom = -1; lastTo = -1; quiet = 0;
+    over = false; overMsg = ''; thinking = false; note = '';
+    build(); startTurn();
+  }
+
+  function undo() {
+    if (!history.length) return;
+    if (timer) { clearTimeout(timer); timer = null; }
+    thinking = false;
+    var s = history.pop();
+    while (mode !== 'two' && s.turn !== HUMAN && history.length) s = history.pop();
+    if (mode !== 'two' && s.turn !== HUMAN) { history.push(s); return; }
+    board = s.b; turn = s.turn; lastFrom = s.lf; lastTo = s.lt; quiet = s.q;
+    keys.length = s.nk;
+    over = false; overMsg = ''; note = '';
+    startTurn();
+  }
+
+  // ---------- Display ----------
+  function dg(s, x, y, len, ang) {
+    var a = 'rotate(' + ang + 'deg)';
+    return '<i class="dg" style="left:' + x + 'px;top:' + y + 'px;width:' + len +
+      'px;-webkit-transform:' + a + ';transform:' + a + '"></i>';
+  }
+
+  function terrain(i, s) {
+    var x = '', m = Math.floor(s * 0.18), L = Math.round((s - 2 * m) * 1.4142), fs;
+    if (WATER[i]) {
+      fs = Math.floor(s * 0.42);
+      x += '<b class="tg" style="top:' + Math.floor(s * 0.08) + 'px;font-size:' + fs + 'px;line-height:' + fs + 'px">&asymp; &asymp;</b>';
+      x += '<b class="tg" style="top:' + Math.floor(s * 0.55) + 'px;font-size:' + fs + 'px;line-height:' + fs + 'px">&asymp; &asymp;</b>';
+    } else if (TRAP[i]) {
+      x += dg(s, m, m - 1, L, 45) + dg(s, m, s - m - 1, L, -45);
+    } else if (DEN[i]) {
+      fs = Math.floor(s * 0.5);
+      x += '<b class="tg den" style="top:' + Math.floor(s * 0.06) + 'px;font-size:' + fs + 'px;line-height:' + fs + 'px">穴</b>';
+      fs = Math.floor(s * 0.22);
+      x += '<b class="tg dl" style="top:' + Math.floor(s * 0.66) + 'px;font-size:' + fs + 'px;line-height:' + fs + 'px">Den</b>';
+    }
+    return x;
+  }
+
+  function build() {
+    var s = cellSize(), html = '', dr, c, i;
+    S = s;
+    for (dr = 0; dr < H; dr++) {
+      html += '<tr>';
+      for (c = 0; c < W; c++) {
+        i = (H - 1 - dr) * W + c;
+        html += '<td data-i="' + i + '"><div class="sq' + (WATER[i] ? ' water' : '') + '" style="width:' + s + 'px;height:' + s + 'px">' +
+          terrain(i, s) + '<span class="ct" id="dq' + i + '"></span></div></td>';
+      }
+      html += '</tr>';
+    }
+    boardEl.innerHTML = html;
+    cells = [];
+    for (i = 0; i < N; i++) cells.push(document.getElementById('dq' + i));
+  }
+
+  function contains(a, x) { var i; for (i = 0; i < a.length; i++) if (a[i] === x) return true; return false; }
+
+  function pieceHtml(v, d, isSel) {
+    var t = v > 0 ? v : -v, en = labels === 'en', fs = Math.floor(d * (en ? 0.3 : 0.5)), rs = Math.floor(d * 0.24);
+    var inner = d - 8, top = Math.floor(inner * (en ? 0.18 : 0.08));
+    return '<span class="pc ' + (v > 0 ? 'w' : 'b') + (en ? ' en' : '') + (isSel ? ' sel' : '') + '" style="width:' + d + 'px;height:' + d +
+      'px;margin:' + (-Math.floor(d / 2)) + 'px 0 0 ' + (-Math.floor(d / 2)) + 'px">' +
+      '<b class="rk" style="top:' + top + 'px;font-size:' + fs + 'px;line-height:' + fs + 'px">' + (en ? EN[t] : ZH[t]) + '</b>' +
+      '<b class="rk" style="top:' + (inner - rs - Math.floor(inner * 0.06)) + 'px;font-size:' + rs + 'px;line-height:' + rs + 'px">' + t + '</b></span>';
+  }
+
+  function render() {
+    var s = S, d = Math.floor(s * 0.84), i, v, html, bs = s - 4, half = Math.floor(s / 2);
+    var boxStyle = 'left:2px;top:2px;width:' + bs + 'px;height:' + bs + 'px';
+    for (i = 0; i < N; i++) {
+      v = board[i]; html = '';
+      if (i === sel) html += '<b class="box sel" style="' + boxStyle + '"></b>';
+      else if (i === lastFrom || i === lastTo) html += '<b class="box last" style="' + boxStyle + '"></b>';
+      if (v) html += pieceHtml(v, d, i === sel);
+      if (contains(targets, i)) {
+        if (v) html += '<b class="dot" style="left:' + (s - 20) + 'px;top:0"></b>';
+        else html += '<b class="dot" style="left:' + (half - 11) + 'px;top:' + (half - 11) + 'px"></b>';
+      }
+      cells[i].innerHTML = html;
+    }
+
+    if (over) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = overMsg;
+    } else {
+      statusEl.className = 'status';
+      var msg;
+      if (thinking) msg = 'Thinking&hellip;';
+      else {
+        msg = mode !== 'two' ? 'Your move (White)' : sideName(turn) + ' to move';
+        if (note) msg += ' &middot; ' + note;
+      }
+      statusEl.innerHTML = msg;
+    }
+    btnUndo.disabled = !history.length || (mode !== 'two' && !hasHumanSnapshot());
+  }
+
+  function hasHumanSnapshot() { var k; for (k = 0; k < history.length; k++) if (history[k].turn === HUMAN) return true; return false; }
+
+  function select(i) {
+    var k;
+    sel = i; targets = [];
+    for (k = 0; k < legal.length; k++) if ((legal[k] >> 6) === i) targets.push(legal[k] & 63);
+    if (!targets.length) note = 'that piece cannot move';
+  }
+
+  boardEl.onclick = function (e) {
+    e = e || window.event;
+    var t = e.target || e.srcElement;
+    while (t && t.tagName !== 'TD') t = t.parentNode;
+    if (!t || over || thinking || !isHumanTurn()) return;
+    var i = parseInt(t.getAttribute('data-i'), 10);
+    note = '';
+    if (sel >= 0 && contains(targets, i)) { doMove((sel << 6) | i); return; }
+    if (board[i] * turn > 0 && i !== sel) select(i);
+    else { sel = -1; targets = []; }
+    render();
+  };
+
+  btnUndo.onclick = undo;
+  document.getElementById('btnNew').onclick = newGame;
+  document.getElementById('btnRules').onclick = function () {
+    helpBox.className = helpBox.className === 'help closed' ? 'help' : 'help closed';
+  };
+  selMode.onchange = function () { store('doushouqi.mode', selMode.value); newGame(); };
+  selLevel.onchange = function () { level = parseInt(selLevel.value, 10); store('doushouqi.level', selLevel.value); };
+  selLabels.onchange = function () { labels = selLabels.value; store('doushouqi.labels', labels); render(); };
+
+  if (window.__dsqTest) window.__dsqTest = { gen: gen, initBoard: initBoard, canCapture: canCapture, evaluate: evaluate,
+    chooseMove: chooseMove, setLevel: function (l) { level = l; }, setKeys: function (k) { keys = k; },
+    WATER: WATER, TRAP: TRAP, DEN: DEN, countPieces: countPieces, stats: function () { return { nodes: nodes, aborted: aborted, depth: lastDepth }; },
+    state: function () { return { board: board, turn: turn, over: over, overMsg: overMsg, history: history, legal: legal, mode: mode }; },
+    doMove: doMove, undo: undo, newGame: newGame, click: function (i) { boardEl.onclick({ target: { tagName: 'TD', getAttribute: function () { return String(i); } } }); },
+    setBoard: function (b, t) { board = b; turn = t; history = []; keys = []; over = false; quiet = 0; startTurn(); } };
+
+  var sm = store('doushouqi.mode'), sl = store('doushouqi.level'), sb = store('doushouqi.labels');
+  if (sm === 'cpu' || sm === 'cpufirst' || sm === 'two') selMode.value = sm;
+  if (sl === '1' || sl === '2' || sl === '3') selLevel.value = sl;
+  if (sb === 'zh' || sb === 'en') selLabels.value = sb;
+  labels = selLabels.value;
+  window.onresize = function () { build(); render(); };
+  newGame();
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className.indexOf('help') >= 0) setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    h.onclick = function () { box.className = box.className.indexOf('closed') >= 0 ? 'help' : 'help closed'; };
+  }
+})();
+</script>
+</body>
+</html>
