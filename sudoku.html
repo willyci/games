@@ -16,36 +16,37 @@ body {
 }
 .app-container {
   width: 100%; max-width: 680px; margin: 0 auto;
-  display: flex; flex-direction: column; gap: 6px;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 2px 6px; box-sizing: border-box;
 }
 .main-layout {
-  display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%;
 }
 .board-column {
-  display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%;
 }
 .bottom-menu {
-  display: flex; flex-direction: column; gap: 6px; width: 100%;
+  display: flex; flex-direction: column; gap: 3px; width: 100%;
 }
 .action-bar-grid {
   display: flex; flex-wrap: wrap; gap: 4px; width: 100%; justify-content: center;
 }
 .action-bar-grid .btn {
-  flex: 1 1 0; min-width: 50px; margin: 0;
+  flex: 1 1 0; min-width: 44px; margin: 0;
 }
 .match-setup-row {
-  display: flex; gap: 6px; width: 100%; justify-content: center;
+  display: flex; gap: 4px; width: 100%; justify-content: center;
 }
 .match-setup-row select.btn {
   flex: 1 1 0; min-width: 0; margin: 0;
 }
 .btn {
   display: inline-block; box-sizing: border-box; position: relative;
-  min-width: 44px; min-height: 38px; line-height: 34px;
-  padding: 0 8px; margin: 2px;
-  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
-  box-shadow: 2px 2px 0 #000;
-  font-family: Georgia, "Times New Roman", serif; font-size: 15px; font-weight: bold;
+  min-width: 40px; min-height: 28px; line-height: 24px;
+  padding: 0 6px; margin: 0;
+  border: 1.5px solid #000; border-radius: 5px; background: #fff; color: #000;
+  box-shadow: 1.5px 1.5px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 13px; font-weight: bold;
   text-decoration: none; text-align: center; vertical-align: middle;
   cursor: pointer; -webkit-appearance: none; appearance: none;
 }
@@ -53,26 +54,26 @@ body {
 .btn:active { left: 1px; top: 1px; box-shadow: none; }
 .btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
 select.btn {
-  padding: 0 32px 0 10px; text-align: left;
-  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+  padding: 0 24px 0 6px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='6'%3E%3Cpath d='M8 0h8L12 6z'/%3E%3C/svg%3E") no-repeat 100% 50%;
 }
 select.btn:active { color: #000; background-color: #fff; }
 .status {
-  text-align: center; font-size: 16px; line-height: 1.25; padding: 6px 10px; min-height: 22px;
+  text-align: center; font-size: 14px; line-height: 1.2; padding: 3px 6px; min-height: 18px;
   background: #eee; border: 1.5px solid #000; border-radius: 4px; width: 100%; box-sizing: border-box;
 }
 .status.win { background: #000; color: #fff; font-weight: bold; }
 .wrap { text-align: center; padding: 2px 0; width: 100%; }
 .help {
-  font-size: 15px; line-height: 1.4; margin: 6px 0 16px; padding: 0 12px 10px;
-  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+  font-size: 13px; line-height: 1.35; margin: 3px 0 6px; padding: 0 10px 6px;
+  border: 1.5px solid #000; border-radius: 5px; overflow: hidden;
 }
-.help.closed { height: 40px; padding-bottom: 0; }
+.help.closed { height: 30px; padding-bottom: 0; }
 .help h2 {
-  font-size: 16px; margin: 0 -12px 6px; padding: 0 12px; height: 40px; line-height: 40px;
+  font-size: 13px; margin: 0 -10px 4px; padding: 0 10px; height: 30px; line-height: 30px;
   border-bottom: 1px solid #000; cursor: pointer;
 }
-.help h2:after { content: "▴"; float: right; font-size: 18px; }
+.help h2:after { content: "▴"; float: right; font-size: 15px; }
 .help.closed h2:after { content: "+"; }
 /* ===== Game specific ===== */
 table.board { border-collapse: collapse; margin: 0 auto; border: 3px solid #000; }
@@ -93,17 +94,17 @@ table.board td.bad { text-decoration: line-through underline; }
   flex-direction: row;
   justify-content: center;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 2px 0;
+  padding: 1px 0;
   box-sizing: border-box;
 }
 .board-wrap { flex: 0 0 auto; text-align: center; }
 .pad-wrap { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-table.pad { border-collapse: separate; border-spacing: 0 2px; margin: 0 auto; }
+table.pad { border-collapse: separate; border-spacing: 0 1px; margin: 0 auto; }
 table.pad td { padding: 0; text-align: center; }
-.btn.kp { padding: 0; line-height: 1.1; font-size: 20px; min-width: 0; box-sizing: border-box; }
-.btn.kp .cnt { font-size: 11px; font-weight: normal; }
+.btn.kp { padding: 0; line-height: 1.05; font-size: 16px; min-width: 0; box-sizing: border-box; }
+.btn.kp .cnt { font-size: 9px; font-weight: normal; display: block; line-height: 1; }
 </style>
 </head>
 <body>
@@ -267,8 +268,12 @@ table.pad td { padding: 0; text-align: center; }
   function cellSize() {
     var w = window.innerWidth || document.documentElement.clientWidth || 600;
     var h = window.innerHeight || document.documentElement.clientHeight || 800;
-    var s = Math.floor(Math.min((w - 80) / 9, (h - 185) / 9));
-    return Math.max(34, Math.min(68, s));
+    var availH = h - 140;
+    var availW = w - 24;
+    var sH = Math.floor(availH / 9);
+    var sW = Math.floor((availW - 14) / 10.2);
+    var s = Math.min(sH, sW);
+    return Math.max(18, Math.min(52, s));
   }
 
   function newGame() {
@@ -330,9 +335,9 @@ table.pad td { padding: 0; text-align: center; }
     tds = boardEl.getElementsByTagName('td');
     cache = [];
 
-    var kw = Math.max(44, Math.min(58, Math.floor(s * 1.1)));
+    var kw = Math.max(34, Math.min(48, Math.floor(s * 1.1)));
     var kh = s;
-    var kfs = Math.max(16, Math.floor(s * 0.42));
+    var kfs = Math.max(13, Math.floor(s * 0.44));
     html = '';
     for (k = 1; k <= 9; k++) {
       html += '<tr><td><button class="btn kp" data-d="' + k + '" style="width:' + kw + 'px;height:' + kh + 'px;font-size:' + kfs + 'px"></button></td></tr>';

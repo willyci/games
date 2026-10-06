@@ -1,224 +1,396 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Kindle Games</title>
-<style>
-html, body { margin: 0; padding: 0; background: #fff; color: #000; }
-body {
-  font-family: Georgia, "Times New Roman", serif;
-  -webkit-tap-highlight-color: rgba(0,0,0,0);
-  -webkit-text-size-adjust: 100%;
-}
-.head { border-bottom: 3px solid #000; padding: 16px 16px 12px; text-align: center; }
-.head h1 { margin: 0; font-size: 32px; letter-spacing: 1px; }
-.head p { margin: 4px 0 0; font-size: 16px; color: #333; }
-.sec { margin: 18px 12px 0; padding: 0 0 6px; border-bottom: 2px solid #000; font-size: 20px; font-weight: bold; }
-.sec small { float: right; font-size: 15px; font-weight: normal; color: #444; line-height: 26px; }
-.grid { text-align: center; padding: 6px 4px 6px; font-size: 0; }
-.tile {
-  display: inline-block; vertical-align: top; box-sizing: border-box; position: relative;
-  width: 30%; margin: 1.5%; padding: 14px 4px 8px;
-  border: 2px solid #000; border-radius: 8px; background: #fff; color: #000;
-  box-shadow: 3px 3px 0 #000;
-  text-decoration: none; font-size: 17px; font-weight: bold;
-}
-.tile:active { left: 3px; top: 3px; box-shadow: none; background: #ddd; }
-.tile svg { display: block; margin: 0 auto 8px; width: 68px; height: 68px; }
-.tile span { display: block; line-height: 1.2; min-height: 42px; }
-@media (min-width: 900px) { .tile { width: 22%; } }
-@media (max-width: 420px) { .tile { width: 46%; } }
-.foot { text-align: center; font-size: 14px; padding: 14px 10px 6px; color: #444; }
-.links { margin: 12px 12px 28px; }
-.links h2 { margin: 0 0 10px; padding: 0 0 6px; font-size: 20px; border-bottom: 2px solid #000; }
-.link {
-  display: block; box-sizing: border-box; position: relative; margin: 0 2px 10px 0; padding: 10px 40px 10px 14px; min-height: 48px;
-  border: 2px solid #000; border-radius: 8px; box-shadow: 3px 3px 0 #000;
-  color: #000; text-decoration: none; font-size: 18px; font-weight: bold;
-}
-.link:after { content: "›"; position: absolute; right: 14px; top: 50%; margin-top: -18px; font-size: 32px; line-height: 32px; }
-.link:active { left: 3px; top: 3px; box-shadow: none; background: #ddd; }
-.link small { display: block; font-size: 14px; font-weight: normal; color: #444; margin-top: 2px; word-wrap: break-word; }
-</style>
-</head>
-<body>
-<div class="head">
-  <h1>Kindle Games</h1>
-  <p id="sub">Tap a game to play</p>
-</div>
-<div id="grid"></div>
-<div class="foot" id="foot"></div>
-<div class="links">
-  <h2>More games for e-readers</h2>
-  <a class="link" href="https://rekindle.ink/">ReKindle<small>rekindle.ink</small></a>
-  <a class="link" href="https://yourchaoschris.github.io/PaperGames/index.html">PaperGames<small>yourchaoschris.github.io/PaperGames</small></a>
-  <a class="link" href="https://artemartemenko.github.io/chess-for-kindle/">Chess for Kindle<small>artemartemenko.github.io/chess-for-kindle</small></a>
-  <a class="link" href="https://kindleplay.com/">KindlePlay<small>kindleplay.com</small></a>
-  <a class="link" href="https://willyci.github.io/CYOA_Holmes/">CYOA Holmes<small>willyci.github.io/CYOA_Holmes</small></a>
-</div>
-<script>
-(function () {
-  // Game files in this folder. Kept up to date by update_index.ps1 (between the markers).
-  // When the page is served by a web server with directory listing, the folder is also scanned live.
-  /*FILES-START*/
-  var FILES = ["2048.html", "5_in_a_row.html", "backgammon.html", "blackjack.html", "checkers.html", "chess.html", "chinese_checker.html", "chinese_chess.html", "connect4.html", "corners.html", "dots_and_boxes.html", "go.html", "hangman.html", "light_out.html", "lost_pin.html", "minesweeper.html", "peg_solitaire.html", "reversi.html", "sudoku.html", "tic_tac_toe.html", "tower_of_hanoi.html"];
-  /*FILES-END*/
-
-  var IGNORE = { 'index.html': 1 };
-
-  // Sections on the index page; games not listed here go under "More".
-  var SECTIONS = [
-    { title: 'Strategy', files: ['chess.html', 'checkers.html', 'reversi.html', 'backgammon.html', 'chinese_chess.html', 'go.html',
-      'connect4.html', '5_in_a_row.html', 'chinese_checker.html', 'corners.html', 'dots_and_boxes.html', 'tic_tac_toe.html'] },
-    { title: 'Puzzles', files: ['sudoku.html', 'minesweeper.html', '2048.html', 'lost_pin.html', 'light_out.html', 'peg_solitaire.html', 'tower_of_hanoi.html'] },
-    { title: 'Cards &amp; Words', files: ['blackjack.html', 'hangman.html'] }
-  ];
-
-  // Shared SVG attributes: black strokes on a 64x64 canvas.
-  var S = 'fill="none" stroke="#000" stroke-width="3"';
-  function svg(body) { return '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' + body + '</svg>'; }
-  function circ(x, y, r, fill) { return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="' + (fill || '#fff') + '" stroke="#000" stroke-width="3"/>'; }
-
-  var META = {
-    'chess.html': { name: 'Chess', icon: svg(
-      '<path d="M22 56h20M24 50h16l-2-14h-12z" ' + S + '/><path d="M26 36c-6-8 2-20 6-24 4 4 12 16 6 24" ' + S + '/><circle cx="32" cy="10" r="3" fill="#000"/>') },
-    'checkers.html': { name: 'Checkers', icon: svg(
-      '<rect x="4" y="4" width="56" height="56" ' + S + '/><rect x="4" y="4" width="28" height="28" fill="#000"/><rect x="32" y="32" width="28" height="28" fill="#000"/>' +
-      circ(18, 46, 10) + '<circle cx="46" cy="18" r="10" fill="#000" stroke="#fff" stroke-width="3"/>') },
-    'reversi.html': { name: 'Reversi', icon: svg(
-      circ(20, 20, 12) + circ(44, 20, 12, '#000') + circ(20, 44, 12, '#000') + circ(44, 44, 12)) },
-    'backgammon.html': { name: 'Backgammon', icon: svg(
-      '<rect x="4" y="6" width="56" height="52" ' + S + '/><path d="M8 8l6 22 6-22M20 8l6 22 6-22M36 56l6-22 6 22M48 56l6-22 6 22" fill="#000" stroke="#000" stroke-width="2"/>' +
-      '<line x1="32" y1="6" x2="32" y2="58" stroke="#000" stroke-width="3"/>') },
-    'corners.html': { name: 'Corners', icon: svg(
-      '<rect x="4" y="4" width="56" height="56" ' + S + '/>' +
-      circ(14, 50, 6) + circ(26, 50, 6) + circ(14, 38, 6) + circ(50, 14, 6, '#000') + circ(38, 14, 6, '#000') + circ(50, 26, 6, '#000') +
-      '<path d="M26 38l12-12M30 26h8v8" ' + S + '/>') },
-    'sudoku.html': { name: 'Sudoku', icon: svg(
-      '<rect x="4" y="4" width="56" height="56" ' + S + '/><path d="M22.7 4v56M41.3 4v56M4 22.7h56M4 41.3h56" stroke="#000" stroke-width="2"/>' +
-      '<text x="13" y="20" font-size="15" font-weight="bold" text-anchor="middle" font-family="Georgia,serif">5</text>' +
-      '<text x="32" y="38" font-size="15" font-weight="bold" text-anchor="middle" font-family="Georgia,serif">3</text>' +
-      '<text x="51" y="57" font-size="15" font-weight="bold" text-anchor="middle" font-family="Georgia,serif">9</text>') },
-    'minesweeper.html': { name: 'Minesweeper', icon: svg(
-      '<circle cx="32" cy="34" r="16" fill="#000"/><path d="M32 8v10M32 50v10M8 34h10M46 34h10M15 17l7 7M42 44l7 7M49 17l-7 7M22 44l-7 7" stroke="#000" stroke-width="4"/>' +
-      '<circle cx="26" cy="28" r="4" fill="#fff"/>') },
-    '2048.html': { name: '2048', icon: svg(
-      '<rect x="4" y="4" width="56" height="56" fill="#000"/>' +
-      '<text x="32" y="40" font-size="20" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Georgia,serif">2048</text>') },
-    'peg_solitaire.html': { name: 'Peg Solitaire', icon: svg(
-      '<path d="M24 4h16v20h20v16H40v20H24V40H4V24h20z" ' + S + '/>' +
-      circ(32, 14, 4, '#000') + circ(14, 32, 4, '#000') + circ(50, 32, 4, '#000') + circ(32, 50, 4, '#000') + circ(32, 32, 4)) },
-    'dots_and_boxes.html': { name: 'Dots & Boxes', icon: svg(
-      '<path d="M10 10h22v22H10z" fill="#000"/><path d="M32 10h22M32 32v22M10 32v22" stroke="#000" stroke-width="3"/>' +
-      '<g fill="#000"><circle cx="10" cy="10" r="4"/><circle cx="32" cy="10" r="4"/><circle cx="54" cy="10" r="4"/><circle cx="10" cy="32" r="4"/><circle cx="32" cy="32" r="4"/>' +
-      '<circle cx="54" cy="32" r="4"/><circle cx="10" cy="54" r="4"/><circle cx="32" cy="54" r="4"/><circle cx="54" cy="54" r="4"/></g>') },
-    'hangman.html': { name: 'Hangman', icon: svg(
-      '<path d="M8 60h28M16 60V6h26v8" ' + S + '/><circle cx="42" cy="21" r="7" ' + S + '/><path d="M42 28v16M42 32l-8 8M42 32l8 8M42 44l-7 12M42 44l7 12" ' + S + '/>') },
-    'light_out.html': { name: 'Lights Out', icon: svg(
-      '<rect x="4" y="4" width="56" height="56" ' + S + '/><rect x="23" y="4" width="18" height="18" fill="#000"/><rect x="4" y="23" width="18" height="18" fill="#000"/>' +
-      '<rect x="23" y="23" width="18" height="18" fill="#000"/><rect x="42" y="23" width="18" height="18" fill="#000"/><rect x="23" y="42" width="18" height="18" fill="#000"/>' +
-      '<path d="M22.5 4v56M41.5 4v56M4 22.5h56M4 41.5h56" stroke="#000" stroke-width="2"/>') },
-    '5_in_a_row.html': { name: 'Five in a Row', icon: svg(
-      '<path d="M4 12h56M4 22h56M4 32h56M4 42h56M4 52h56M12 4v56M22 4v56M32 4v56M42 4v56M52 4v56" stroke="#000" stroke-width="1.5"/>' +
-      '<g fill="#000"><circle cx="12" cy="52" r="5"/><circle cx="22" cy="42" r="5"/><circle cx="32" cy="32" r="5"/><circle cx="42" cy="22" r="5"/><circle cx="52" cy="12" r="5"/></g>' +
-      circ(22, 22, 4) + circ(42, 42, 4)) },
-    'go.html': { name: 'Go', icon: svg(
-      '<rect x="4" y="4" width="56" height="56" ' + S + '/><path d="M18 4v56M32 4v56M46 4v56M4 18h56M4 32h56M4 46h56" stroke="#000" stroke-width="1.5"/>' +
-      '<circle cx="18" cy="18" r="6" fill="#000"/><circle cx="32" cy="32" r="6" fill="#000"/>' + circ(46, 32, 6) + circ(32, 46, 6)) },
-    'chinese_chess.html': { name: 'Chinese Chess', icon: svg(
-      circ(32, 32, 26) + '<circle cx="32" cy="32" r="20" fill="none" stroke="#000" stroke-width="1.5"/>' +
-      '<text x="32" y="43" font-size="30" font-weight="bold" text-anchor="middle">帥</text>') },
-    'chinese_checker.html': { name: 'Chinese Checkers', icon: svg(
-      '<path d="M32 2L40 18H58L48 32L58 46H40L32 62L24 46H6L16 32L6 18H24Z" ' + S + '/>' +
-      '<g fill="#000"><circle cx="32" cy="12" r="3.5"/><circle cx="28" cy="20" r="3.5"/><circle cx="36" cy="20" r="3.5"/></g>' +
-      circ(32, 52, 3.5) + circ(28, 44, 3.5) + circ(36, 44, 3.5)) },
-    'connect4.html': { name: 'Connect Four', icon: svg(
-      '<rect x="4" y="8" width="56" height="50" ' + S + '/>' +
-      circ(14, 48, 5, '#000') + circ(26, 48, 5) + circ(38, 48, 5, '#000') + circ(26, 36, 5, '#000') + circ(38, 36, 5) +
-      circ(38, 24, 5, '#000') + circ(50, 48, 5) + circ(50, 36, 5) + circ(50, 24, 5) + circ(50, 12, 5, '#000')) },
-    'tic_tac_toe.html': { name: 'Tic-Tac-Toe', icon: svg(
-      '<path d="M23 6v52M41 6v52M6 23h52M6 41h52" stroke="#000" stroke-width="3"/>' +
-      '<path d="M9 9l10 10M19 9L9 19M27 27l10 10M37 27L27 37M45 45l10 10M55 45L45 55" stroke="#000" stroke-width="3.5"/>' +
-      circ(50, 14, 5) + circ(14, 50, 5)) },
-    'tower_of_hanoi.html': { name: 'Tower of Hanoi', icon: svg(
-      '<path d="M4 58h56M14 58V16M32 58V16M50 58V16" stroke="#000" stroke-width="3"/>' +
-      '<rect x="4" y="46" width="20" height="9" fill="#000"/><rect x="7" y="37" width="14" height="9" fill="#888" stroke="#000" stroke-width="2"/>' +
-      '<rect x="27" y="49" width="10" height="7" fill="#fff" stroke="#000" stroke-width="2"/>') },
-    'blackjack.html': { name: 'Blackjack', icon: svg(
-      '<rect x="6" y="10" width="30" height="44" rx="4" transform="rotate(-12 21 32)" fill="#fff" stroke="#000" stroke-width="3"/>' +
-      '<rect x="26" y="8" width="30" height="44" rx="4" transform="rotate(10 41 30)" fill="#fff" stroke="#000" stroke-width="3"/>' +
-      '<text x="42" y="36" font-size="20" font-weight="bold" text-anchor="middle" font-family="Georgia,serif" transform="rotate(10 41 30)">A</text>' +
-      '<text x="42" y="48" font-size="12" text-anchor="middle" transform="rotate(10 41 30)">♠</text>') },
-    'lost_pin.html': { name: 'Lost PIN', icon: svg(
-      '<rect x="8" y="4" width="48" height="56" ' + S + '/><rect x="14" y="10" width="36" height="12" fill="#000"/>' +
-      '<g fill="#000"><circle cx="20" cy="32" r="4"/><circle cx="32" cy="32" r="4"/><circle cx="44" cy="32" r="4"/><circle cx="20" cy="43" r="4"/>' +
-      '<circle cx="32" cy="43" r="4"/><circle cx="44" cy="43" r="4"/><circle cx="32" cy="53" r="4"/></g>' +
-      '<text x="32" y="20" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Georgia,serif">* * * *</text>') }
-  };
-
-  function prettyName(file) {
-    var n = file.replace(/\.html?$/i, '').replace(/[_\-]+/g, ' ');
-    return n.replace(/\b[a-z]/g, function (c) { return c.toUpperCase(); });
-  }
-
-  function genericIcon(name) {
-    var letter = (name.charAt(0) || '?').toUpperCase();
-    return svg('<rect x="6" y="6" width="52" height="52" ' + S + '/><text x="32" y="44" font-size="32" font-weight="bold" text-anchor="middle" font-family="Georgia,serif">' + letter + '</text>');
-  }
-
-  function nameOf(f) { return (META[f] && META[f].name) || prettyName(f); }
-
-  function tile(f) {
-    var m = META[f] || {}, name = nameOf(f);
-    return '<a class="tile" href="' + encodeURI(f) + '">' + (m.icon || genericIcon(name)) + '<span>' + name + '</span></a>';
-  }
-
-  function render(files) {
-    var have = {}, used = {}, i, j, f, html = '', total = 0, rest = [];
-    for (i = 0; i < files.length; i++) if (files[i] && !IGNORE[files[i].toLowerCase()]) have[files[i]] = 1;
-    function section(title, list) {
-      if (!list.length) return;
-      html += '<div class="sec">' + title + '<small>' + list.length + '</small></div><div class="grid">';
-      for (var k = 0; k < list.length; k++) html += tile(list[k]);
-      html += '</div>';
-      total += list.length;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>e-readers Games</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      color: #000;
     }
-    for (i = 0; i < SECTIONS.length; i++) {
-      var list = [];
-      for (j = 0; j < SECTIONS[i].files.length; j++) {
-        f = SECTIONS[i].files[j];
-        if (have[f] && !used[f]) { list.push(f); used[f] = 1; }
+
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .head {
+      border-bottom: 3px solid #000;
+      padding: 16px 16px 12px;
+      text-align: center;
+    }
+
+    .head h1 {
+      margin: 0;
+      font-size: 32px;
+      letter-spacing: 1px;
+    }
+
+    .head p {
+      margin: 4px 0 0;
+      font-size: 16px;
+      color: #333;
+    }
+
+    .sec {
+      margin: 18px 12px 0;
+      padding: 0 0 6px;
+      border-bottom: 2px solid #000;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .sec small {
+      float: right;
+      font-size: 15px;
+      font-weight: normal;
+      color: #444;
+      line-height: 26px;
+    }
+
+    .grid {
+      text-align: center;
+      padding: 6px 4px 6px;
+      font-size: 0;
+    }
+
+    .tile {
+      display: inline-block;
+      vertical-align: top;
+      box-sizing: border-box;
+      position: relative;
+      width: 30%;
+      margin: 1.5%;
+      padding: 14px 4px 8px;
+      border: 2px solid #000;
+      border-radius: 8px;
+      background: #fff;
+      color: #000;
+      box-shadow: 3px 3px 0 #000;
+      text-decoration: none;
+      font-size: 17px;
+      font-weight: bold;
+    }
+
+    .tile:active {
+      left: 3px;
+      top: 3px;
+      box-shadow: none;
+      background: #ddd;
+    }
+
+    .tile svg {
+      display: block;
+      margin: 0 auto 8px;
+      width: 68px;
+      height: 68px;
+    }
+
+    .tile span {
+      display: block;
+      line-height: 1.2;
+      min-height: 42px;
+    }
+
+    @media (min-width: 900px) {
+      .tile {
+        width: 22%;
       }
-      section(SECTIONS[i].title, list);
     }
-    for (f in have) if (have.hasOwnProperty(f) && !used[f]) rest.push(f);
-    rest.sort(function (a, b) { return nameOf(a).toLowerCase() < nameOf(b).toLowerCase() ? -1 : 1; });
-    section('More', rest);
-    document.getElementById('grid').innerHTML = html;
-    document.getElementById('sub').innerHTML = total + ' games &middot; tap one to play';
-    document.getElementById('foot').innerHTML = 'Made for e-ink screens: high contrast, no animations, big buttons.';
-  }
 
-  // Try to scan the folder live (works on servers that return a directory listing).
-  function scan() {
-    var x;
-    try { x = new XMLHttpRequest(); x.open('GET', './', true); } catch (e) { return; }
-    x.onreadystatechange = function () {
-      if (x.readyState !== 4 || !(x.status === 200 || x.status === 0) || !x.responseText) return;
-      var re = /href="([^"?#\/]+\.html?)"/gi, m, found = [];
-      while ((m = re.exec(x.responseText))) found.push(decodeURIComponent(m[1]));
-      // A real listing contains the index itself; a served index.html page would not.
-      var hasIndex = false, i;
-      for (i = 0; i < found.length; i++) if (found[i].toLowerCase() === 'index.html') hasIndex = true;
-      if (hasIndex && found.length > 1) render(found);
-    };
-    try { x.send(null); } catch (e2) {}
-  }
+    @media (max-width: 420px) {
+      .tile {
+        width: 46%;
+      }
+    }
 
-  render(FILES);
-  scan();
-})();
-</script>
+    .foot {
+      text-align: center;
+      font-size: 14px;
+      padding: 14px 10px 6px;
+      color: #444;
+    }
+
+    .links {
+      margin: 12px 12px 28px;
+    }
+
+    .links h2 {
+      margin: 0 0 10px;
+      padding: 0 0 6px;
+      font-size: 20px;
+      border-bottom: 2px solid #000;
+    }
+
+    .link {
+      display: block;
+      box-sizing: border-box;
+      position: relative;
+      margin: 0 2px 10px 0;
+      padding: 10px 40px 10px 14px;
+      min-height: 48px;
+      border: 2px solid #000;
+      border-radius: 8px;
+      box-shadow: 3px 3px 0 #000;
+      color: #000;
+      text-decoration: none;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .link:after {
+      content: "›";
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      margin-top: -18px;
+      font-size: 32px;
+      line-height: 32px;
+    }
+
+    .link:active {
+      left: 3px;
+      top: 3px;
+      box-shadow: none;
+      background: #ddd;
+    }
+
+    .link small {
+      display: block;
+      font-size: 14px;
+      font-weight: normal;
+      color: #444;
+      margin-top: 2px;
+      word-wrap: break-word;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="head">
+    <h1>E-readers Games</h1>
+    <p id="sub">Tap a game to play</p>
+  </div>
+  <div id="grid"></div>
+  <div class="foot" id="foot"></div>
+  <div class="links">
+    <h2>More games for e-readers</h2>
+    <a class="link" href="https://willyci.github.io/CYOA_Holmes/">CYOA
+      Holmes<small>willyci.github.io/CYOA_Holmes</small></a>
+  </div>
+  <script>
+    (function () {
+      // Game files in this folder. Kept up to date by update_index.ps1 (between the markers).
+      // When the page is served by a web server with directory listing, the folder is also scanned live.
+      /*FILES-START*/
+      var FILES = ["2048.html", "5_in_a_row.html", "backgammon.html", "blackjack.html", "checkers.html", "chess.html", "chinese_checker.html", "chinese_chess.html", "connect4.html", "corners.html", "dots_and_boxes.html", "go.html", "hangman.html", "light_out.html", "lost_pin.html", "minesweeper.html", "peg_solitaire.html", "reversi.html", "sudoku.html", "tic_tac_toe.html", "tower_of_hanoi.html"];
+      /*FILES-END*/
+
+      var IGNORE = { 'index.html': 1 };
+
+      // Sections on the index page; games not listed here go under "More".
+      var SECTIONS = [
+        {
+          title: 'Strategy', files: ['chess.html', 'checkers.html', 'reversi.html', 'backgammon.html', 'chinese_chess.html', 'go.html',
+            'connect4.html', '5_in_a_row.html', 'chinese_checker.html', 'corners.html', 'dots_and_boxes.html', 'tic_tac_toe.html']
+        },
+        { title: 'Puzzles', files: ['sudoku.html', 'minesweeper.html', '2048.html', 'lost_pin.html', 'light_out.html', 'peg_solitaire.html', 'tower_of_hanoi.html'] },
+        { title: 'Cards &amp; Words', files: ['blackjack.html', 'hangman.html'] }
+      ];
+
+      // Shared SVG attributes: black strokes on a 64x64 canvas.
+      var S = 'fill="none" stroke="#000" stroke-width="3"';
+      function svg(body) { return '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' + body + '</svg>'; }
+      function circ(x, y, r, fill) { return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="' + (fill || '#fff') + '" stroke="#000" stroke-width="3"/>'; }
+
+      var META = {
+        'chess.html': {
+          name: 'Chess', icon: svg(
+            '<path d="M22 56h20M24 50h16l-2-14h-12z" ' + S + '/><path d="M26 36c-6-8 2-20 6-24 4 4 12 16 6 24" ' + S + '/><circle cx="32" cy="10" r="3" fill="#000"/>')
+        },
+        'checkers.html': {
+          name: 'Checkers', icon: svg(
+            '<rect x="4" y="4" width="56" height="56" ' + S + '/><rect x="4" y="4" width="28" height="28" fill="#000"/><rect x="32" y="32" width="28" height="28" fill="#000"/>' +
+            circ(18, 46, 10) + '<circle cx="46" cy="18" r="10" fill="#000" stroke="#fff" stroke-width="3"/>')
+        },
+        'reversi.html': {
+          name: 'Reversi', icon: svg(
+            circ(20, 20, 12) + circ(44, 20, 12, '#000') + circ(20, 44, 12, '#000') + circ(44, 44, 12))
+        },
+        'backgammon.html': {
+          name: 'Backgammon', icon: svg(
+            '<rect x="4" y="6" width="56" height="52" ' + S + '/><path d="M8 8l6 22 6-22M20 8l6 22 6-22M36 56l6-22 6 22M48 56l6-22 6 22" fill="#000" stroke="#000" stroke-width="2"/>' +
+            '<line x1="32" y1="6" x2="32" y2="58" stroke="#000" stroke-width="3"/>')
+        },
+        'corners.html': {
+          name: 'Corners', icon: svg(
+            '<rect x="4" y="4" width="56" height="56" ' + S + '/>' +
+            circ(14, 50, 6) + circ(26, 50, 6) + circ(14, 38, 6) + circ(50, 14, 6, '#000') + circ(38, 14, 6, '#000') + circ(50, 26, 6, '#000') +
+            '<path d="M26 38l12-12M30 26h8v8" ' + S + '/>')
+        },
+        'sudoku.html': {
+          name: 'Sudoku', icon: svg(
+            '<rect x="4" y="4" width="56" height="56" ' + S + '/><path d="M22.7 4v56M41.3 4v56M4 22.7h56M4 41.3h56" stroke="#000" stroke-width="2"/>' +
+            '<text x="13" y="20" font-size="15" font-weight="bold" text-anchor="middle" font-family="Georgia,serif">5</text>' +
+            '<text x="32" y="38" font-size="15" font-weight="bold" text-anchor="middle" font-family="Georgia,serif">3</text>' +
+            '<text x="51" y="57" font-size="15" font-weight="bold" text-anchor="middle" font-family="Georgia,serif">9</text>')
+        },
+        'minesweeper.html': {
+          name: 'Minesweeper', icon: svg(
+            '<circle cx="32" cy="34" r="16" fill="#000"/><path d="M32 8v10M32 50v10M8 34h10M46 34h10M15 17l7 7M42 44l7 7M49 17l-7 7M22 44l-7 7" stroke="#000" stroke-width="4"/>' +
+            '<circle cx="26" cy="28" r="4" fill="#fff"/>')
+        },
+        '2048.html': {
+          name: '2048', icon: svg(
+            '<rect x="4" y="4" width="56" height="56" fill="#000"/>' +
+            '<text x="32" y="40" font-size="20" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Georgia,serif">2048</text>')
+        },
+        'peg_solitaire.html': {
+          name: 'Peg Solitaire', icon: svg(
+            '<path d="M24 4h16v20h20v16H40v20H24V40H4V24h20z" ' + S + '/>' +
+            circ(32, 14, 4, '#000') + circ(14, 32, 4, '#000') + circ(50, 32, 4, '#000') + circ(32, 50, 4, '#000') + circ(32, 32, 4))
+        },
+        'dots_and_boxes.html': {
+          name: 'Dots & Boxes', icon: svg(
+            '<path d="M10 10h22v22H10z" fill="#000"/><path d="M32 10h22M32 32v22M10 32v22" stroke="#000" stroke-width="3"/>' +
+            '<g fill="#000"><circle cx="10" cy="10" r="4"/><circle cx="32" cy="10" r="4"/><circle cx="54" cy="10" r="4"/><circle cx="10" cy="32" r="4"/><circle cx="32" cy="32" r="4"/>' +
+            '<circle cx="54" cy="32" r="4"/><circle cx="10" cy="54" r="4"/><circle cx="32" cy="54" r="4"/><circle cx="54" cy="54" r="4"/></g>')
+        },
+        'hangman.html': {
+          name: 'Hangman', icon: svg(
+            '<path d="M8 60h28M16 60V6h26v8" ' + S + '/><circle cx="42" cy="21" r="7" ' + S + '/><path d="M42 28v16M42 32l-8 8M42 32l8 8M42 44l-7 12M42 44l7 12" ' + S + '/>')
+        },
+        'light_out.html': {
+          name: 'Lights Out', icon: svg(
+            '<rect x="4" y="4" width="56" height="56" ' + S + '/><rect x="23" y="4" width="18" height="18" fill="#000"/><rect x="4" y="23" width="18" height="18" fill="#000"/>' +
+            '<rect x="23" y="23" width="18" height="18" fill="#000"/><rect x="42" y="23" width="18" height="18" fill="#000"/><rect x="23" y="42" width="18" height="18" fill="#000"/>' +
+            '<path d="M22.5 4v56M41.5 4v56M4 22.5h56M4 41.5h56" stroke="#000" stroke-width="2"/>')
+        },
+        '5_in_a_row.html': {
+          name: 'Five in a Row', icon: svg(
+            '<path d="M4 12h56M4 22h56M4 32h56M4 42h56M4 52h56M12 4v56M22 4v56M32 4v56M42 4v56M52 4v56" stroke="#000" stroke-width="1.5"/>' +
+            '<g fill="#000"><circle cx="12" cy="52" r="5"/><circle cx="22" cy="42" r="5"/><circle cx="32" cy="32" r="5"/><circle cx="42" cy="22" r="5"/><circle cx="52" cy="12" r="5"/></g>' +
+            circ(22, 22, 4) + circ(42, 42, 4))
+        },
+        'go.html': {
+          name: 'Go', icon: svg(
+            '<rect x="4" y="4" width="56" height="56" ' + S + '/><path d="M18 4v56M32 4v56M46 4v56M4 18h56M4 32h56M4 46h56" stroke="#000" stroke-width="1.5"/>' +
+            '<circle cx="18" cy="18" r="6" fill="#000"/><circle cx="32" cy="32" r="6" fill="#000"/>' + circ(46, 32, 6) + circ(32, 46, 6))
+        },
+        'chinese_chess.html': {
+          name: 'Chinese Chess', icon: svg(
+            circ(32, 32, 26) + '<circle cx="32" cy="32" r="20" fill="none" stroke="#000" stroke-width="1.5"/>' +
+            '<text x="32" y="43" font-size="30" font-weight="bold" text-anchor="middle">帥</text>')
+        },
+        'chinese_checker.html': {
+          name: 'Chinese Checkers', icon: svg(
+            '<path d="M32 2L40 18H58L48 32L58 46H40L32 62L24 46H6L16 32L6 18H24Z" ' + S + '/>' +
+            '<g fill="#000"><circle cx="32" cy="12" r="3.5"/><circle cx="28" cy="20" r="3.5"/><circle cx="36" cy="20" r="3.5"/></g>' +
+            circ(32, 52, 3.5) + circ(28, 44, 3.5) + circ(36, 44, 3.5))
+        },
+        'connect4.html': {
+          name: 'Connect Four', icon: svg(
+            '<rect x="4" y="8" width="56" height="50" ' + S + '/>' +
+            circ(14, 48, 5, '#000') + circ(26, 48, 5) + circ(38, 48, 5, '#000') + circ(26, 36, 5, '#000') + circ(38, 36, 5) +
+            circ(38, 24, 5, '#000') + circ(50, 48, 5) + circ(50, 36, 5) + circ(50, 24, 5) + circ(50, 12, 5, '#000'))
+        },
+        'tic_tac_toe.html': {
+          name: 'Tic-Tac-Toe', icon: svg(
+            '<path d="M23 6v52M41 6v52M6 23h52M6 41h52" stroke="#000" stroke-width="3"/>' +
+            '<path d="M9 9l10 10M19 9L9 19M27 27l10 10M37 27L27 37M45 45l10 10M55 45L45 55" stroke="#000" stroke-width="3.5"/>' +
+            circ(50, 14, 5) + circ(14, 50, 5))
+        },
+        'tower_of_hanoi.html': {
+          name: 'Tower of Hanoi', icon: svg(
+            '<path d="M4 58h56M14 58V16M32 58V16M50 58V16" stroke="#000" stroke-width="3"/>' +
+            '<rect x="4" y="46" width="20" height="9" fill="#000"/><rect x="7" y="37" width="14" height="9" fill="#888" stroke="#000" stroke-width="2"/>' +
+            '<rect x="27" y="49" width="10" height="7" fill="#fff" stroke="#000" stroke-width="2"/>')
+        },
+        'blackjack.html': {
+          name: 'Blackjack', icon: svg(
+            '<rect x="6" y="10" width="30" height="44" rx="4" transform="rotate(-12 21 32)" fill="#fff" stroke="#000" stroke-width="3"/>' +
+            '<rect x="26" y="8" width="30" height="44" rx="4" transform="rotate(10 41 30)" fill="#fff" stroke="#000" stroke-width="3"/>' +
+            '<text x="42" y="36" font-size="20" font-weight="bold" text-anchor="middle" font-family="Georgia,serif" transform="rotate(10 41 30)">A</text>' +
+            '<text x="42" y="48" font-size="12" text-anchor="middle" transform="rotate(10 41 30)">♠</text>')
+        },
+        'lost_pin.html': {
+          name: 'Lost PIN', icon: svg(
+            '<rect x="8" y="4" width="48" height="56" ' + S + '/><rect x="14" y="10" width="36" height="12" fill="#000"/>' +
+            '<g fill="#000"><circle cx="20" cy="32" r="4"/><circle cx="32" cy="32" r="4"/><circle cx="44" cy="32" r="4"/><circle cx="20" cy="43" r="4"/>' +
+            '<circle cx="32" cy="43" r="4"/><circle cx="44" cy="43" r="4"/><circle cx="32" cy="53" r="4"/></g>' +
+            '<text x="32" y="20" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Georgia,serif">* * * *</text>')
+        }
+      };
+
+      function prettyName(file) {
+        var n = file.replace(/\.html?$/i, '').replace(/[_\-]+/g, ' ');
+        return n.replace(/\b[a-z]/g, function (c) { return c.toUpperCase(); });
+      }
+
+      function genericIcon(name) {
+        var letter = (name.charAt(0) || '?').toUpperCase();
+        return svg('<rect x="6" y="6" width="52" height="52" ' + S + '/><text x="32" y="44" font-size="32" font-weight="bold" text-anchor="middle" font-family="Georgia,serif">' + letter + '</text>');
+      }
+
+      function nameOf(f) { return (META[f] && META[f].name) || prettyName(f); }
+
+      function tile(f) {
+        var m = META[f] || {}, name = nameOf(f);
+        return '<a class="tile" href="' + encodeURI(f) + '">' + (m.icon || genericIcon(name)) + '<span>' + name + '</span></a>';
+      }
+
+      function render(files) {
+        var have = {}, used = {}, i, j, f, html = '', total = 0, rest = [];
+        for (i = 0; i < files.length; i++) if (files[i] && !IGNORE[files[i].toLowerCase()]) have[files[i]] = 1;
+        function section(title, list) {
+          if (!list.length) return;
+          html += '<div class="sec">' + title + '<small>' + list.length + '</small></div><div class="grid">';
+          for (var k = 0; k < list.length; k++) html += tile(list[k]);
+          html += '</div>';
+          total += list.length;
+        }
+        for (i = 0; i < SECTIONS.length; i++) {
+          var list = [];
+          for (j = 0; j < SECTIONS[i].files.length; j++) {
+            f = SECTIONS[i].files[j];
+            if (have[f] && !used[f]) { list.push(f); used[f] = 1; }
+          }
+          section(SECTIONS[i].title, list);
+        }
+        for (f in have) if (have.hasOwnProperty(f) && !used[f]) rest.push(f);
+        rest.sort(function (a, b) { return nameOf(a).toLowerCase() < nameOf(b).toLowerCase() ? -1 : 1; });
+        section('More', rest);
+        document.getElementById('grid').innerHTML = html;
+        document.getElementById('sub').innerHTML = total + ' games &middot; tap one to play';
+        document.getElementById('foot').innerHTML = 'Made for e-ink screens: high contrast, no animations, big buttons.';
+      }
+
+      // Try to scan the folder live (works on servers that return a directory listing).
+      function scan() {
+        var x;
+        try { x = new XMLHttpRequest(); x.open('GET', './', true); } catch (e) { return; }
+        x.onreadystatechange = function () {
+          if (x.readyState !== 4 || !(x.status === 200 || x.status === 0) || !x.responseText) return;
+          var re = /href="([^"?#\/]+\.html?)"/gi, m, found = [];
+          while ((m = re.exec(x.responseText))) found.push(decodeURIComponent(m[1]));
+          // A real listing contains the index itself; a served index.html page would not.
+          var hasIndex = false, i;
+          for (i = 0; i < found.length; i++) if (found[i].toLowerCase() === 'index.html') hasIndex = true;
+          if (hasIndex && found.length > 1) render(found);
+        };
+        try { x.send(null); } catch (e2) { }
+      }
+
+      render(FILES);
+      scan();
+    })();
+  </script>
 </body>
+
 </html>

@@ -76,7 +76,7 @@ select.btn:active { color: #000; background-color: #fff; }
 .help.closed h2:after { content: "+"; }
 /* ===== Game specific ===== */
 table.board { border-collapse: collapse; margin: 0 auto; border: 3px solid #000; }
-table.board td { border: 1px solid #999; padding: 3px; text-align: center; vertical-align: middle; background: #fff; }
+table.board td { border: 1px solid #999; padding: 2px; text-align: center; vertical-align: middle; background: #fff; box-sizing: border-box; }
 .tile { box-sizing: border-box; margin: 0 auto; border: 2px solid #000; font-weight: bold; text-align: center; overflow: hidden; font-family: Arial, Helvetica, sans-serif; }
 .k1 { background: #fff; color: #000; }
 .k2 { background: #ccc; color: #000; }
@@ -97,10 +97,10 @@ table.board td { border: 1px solid #999; padding: 3px; text-align: center; verti
 }
 .board-wrap { flex: 0 0 auto; text-align: center; }
 .controller-wrap { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-table.dpad { border-collapse: separate; border-spacing: 4px; margin: 0 auto; }
+table.dpad { border-collapse: separate; border-spacing: 3px; margin: 0 auto; }
 table.dpad td { padding: 0; text-align: center; vertical-align: middle; }
-.dbtn { width: 54px; height: 50px; line-height: 46px; font-size: 22px; padding: 0; margin: 0; }
-.undo-btn { width: 100%; font-size: 16px; height: 42px; line-height: 38px; }
+.dbtn { width: 50px; height: 44px; line-height: 40px; font-size: 20px; padding: 0; margin: 0; }
+.undo-btn { width: 100%; font-size: 15px; height: 38px; line-height: 34px; }
 .score { display: inline-block; margin: 0 10px; font-weight: bold; }
 </style>
 </head>
@@ -126,14 +126,12 @@ table.dpad td { padding: 0; text-align: center; vertical-align: middle; }
     <section class="bottom-menu">
       <div class="action-bar-grid">
         <a class="btn" href="index.html">&#8592; Games</a>
-        <button class="btn" id="btnNew">New</button>
-      </div>
-      <div class="match-setup-row">
         <select class="btn" id="selSize">
           <option value="4" selected>4 &times; 4</option>
           <option value="5">5 &times; 5</option>
           <option value="6">6 &times; 6</option>
         </select>
+        <button class="btn" id="btnNew">New</button>
       </div>
     </section>
   </main>
@@ -156,11 +154,19 @@ table.dpad td { padding: 0; text-align: center; vertical-align: middle; }
 
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
 
-  function cellSize() {
+  function baseGridSize() {
     var w = window.innerWidth || document.documentElement.clientWidth || 600;
     var h = window.innerHeight || document.documentElement.clientHeight || 800;
-    var s = Math.floor(Math.min((w - 150) / N, (h - 220) / N));
-    return Math.max(36, Math.min(130, s));
+    var s4 = Math.floor(Math.min((w - 150) / 4, (h - 200) / 4));
+    s4 = Math.max(46, Math.min(85, s4));
+    return s4 * 4;
+  }
+
+  function cellSize() {
+    var total = baseGridSize();
+    var cellExtra = 5; // 2*2px padding + 1px border
+    var s = Math.floor((total - (N * cellExtra)) / N);
+    return Math.max(26, s);
   }
 
   function empties() { var e = [], i; for (i = 0; i < N * N; i++) if (!grid[i]) e.push(i); return e; }
@@ -275,11 +281,11 @@ table.dpad td { padding: 0; text-align: center; vertical-align: middle; }
 
   function tileHtml(v, s) {
     var w = s, txt = String(v), len = txt.length, fs, k;
-    fs = Math.floor(s * (len <= 2 ? 0.45 : len === 3 ? 0.36 : len === 4 ? 0.28 : 0.22));
+    fs = Math.max(9, Math.floor(s * (len <= 2 ? 0.44 : len === 3 ? 0.35 : len === 4 ? 0.28 : 0.22)));
     if (v <= 4) k = 'k1'; else if (v <= 32) k = 'k2'; else if (v <= 256) k = 'k3'; else if (v < 2048) k = 'k4'; else k = 'k5';
     if (k === 'k5') {
-      return '<div class="tile k5" style="width:' + w + 'px;height:' + w + 'px;padding:3px;font-size:' + fs + 'px">' +
-        '<div style="width:' + (w - 10) + 'px;height:' + (w - 10) + 'px;line-height:' + (w - 14) + 'px">' + txt + '</div></div>';
+      return '<div class="tile k5" style="width:' + w + 'px;height:' + w + 'px;padding:2px;font-size:' + fs + 'px">' +
+        '<div style="width:' + (w - 8) + 'px;height:' + (w - 8) + 'px;line-height:' + (w - 12) + 'px">' + txt + '</div></div>';
     }
     return '<div class="tile ' + k + '" style="width:' + w + 'px;height:' + w + 'px;line-height:' + (w - 4) + 'px;font-size:' + fs + 'px">' + txt + '</div>';
   }
