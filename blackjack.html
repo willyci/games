@@ -91,7 +91,6 @@ select.btn:active { color: #000; background-color: #fff; }
   width: 100%; box-sizing: border-box;
 }
 .status.win { background: #000; color: #fff; font-weight: bold; }
-.wrap { text-align: center; padding: 2px 0; width: 100%; }
 .help {
   font-size: 15px; line-height: 1.4; margin: 4px 0 16px; padding: 0 12px 10px;
   border: 2px solid #000; border-radius: 6px; overflow: hidden;
@@ -104,22 +103,76 @@ select.btn:active { color: #000; background-color: #fff; }
 .help h2:after { content: "▴"; float: right; font-size: 18px; }
 .help.closed h2:after { content: "+"; }
 /* ===== Game specific ===== */
-.bank { font-size: 16px; font-weight: bold; padding: 2px 0; }
+.game-area {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.table-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 440px;
+  text-align: center;
+}
+.controller-wrap {
+  flex: 0 0 118px;
+  width: 118px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.controller-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.controller-wrap .btn,
+.controller-wrap select.btn {
+  width: 100%;
+  min-height: 42px;
+  line-height: 38px;
+  margin: 0;
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+.controller-wrap #btnDeal {
+  min-height: 48px;
+  line-height: 44px;
+}
+.bank {
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: center;
+  padding: 5px 4px;
+  border: 2px solid #000;
+  border-radius: 6px;
+  background: #eee;
+  box-sizing: border-box;
+  width: 100%;
+}
+.bank b { font-size: 16px; }
 .label { font-size: 15px; font-weight: bold; margin: 4px 0 2px; }
-.area { min-height: 92px; padding: 2px 0; }
+.area { min-height: 104px; padding: 2px 0; }
 .hand { display: inline-block; vertical-align: top; margin: 0 4px 6px; padding: 4px 4px 2px; border: 2px dashed transparent; }
 .hand.active { border: 3px solid #000; }
-.hand .tot { font-size: 15px; margin-top: 2px; }
+.hand .tot { font-size: 15px; font-weight: bold; margin-top: 2px; }
 .card {
   display: inline-block; vertical-align: top; position: relative;
-  width: 54px; height: 80px; margin: 0 3px; box-sizing: border-box;
+  width: 66px; height: 96px; margin: 0 3px; box-sizing: border-box;
   border: 2px solid #000; border-radius: 6px; background: #fff; text-align: left;
 }
-.card .r { position: absolute; left: 4px; top: 2px; font-size: 20px; font-weight: bold; }
-.card .s { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font-size: 30px; line-height: 30px; }
+.card .r { position: absolute; left: 5px; top: 2px; font-size: 24px; font-weight: bold; }
+.card .s { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 38px; line-height: 38px; }
 .card.red .s { color: #fff; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
 .card.back { background: #888; border-color: #000; }
-.card.back span { position: absolute; left: 5px; right: 5px; top: 5px; bottom: 5px; border: 2px solid #fff; border-radius: 3px; }
+.card.back span { position: absolute; left: 6px; right: 6px; top: 6px; bottom: 6px; border: 2px solid #fff; border-radius: 3px; }
 .divider { border-top: 1px solid #000; margin: 2px 24px; }
 </style>
 </head>
@@ -128,32 +181,36 @@ select.btn:active { color: #000; background-color: #fff; }
   <main class="main-layout">
     <section class="board-column">
       <div class="status" id="status"></div>
-      <div class="wrap">
-        <div class="bank" id="bank"></div>
-        <div class="label">Dealer</div>
-        <div class="area" id="dealer"></div>
-        <div class="divider"></div>
-        <div class="label">You</div>
-        <div class="area" id="player"></div>
+      <div class="game-area">
+        <div class="table-wrap">
+          <div class="label">Dealer</div>
+          <div class="area" id="dealer"></div>
+          <div class="divider"></div>
+          <div class="label">You</div>
+          <div class="area" id="player"></div>
+        </div>
+        <div class="controller-wrap">
+          <div class="bank" id="bank"></div>
+          <div class="controller-group" id="playActions">
+            <button class="btn" id="btnHit">Hit</button>
+            <button class="btn" id="btnStand">Stand</button>
+            <button class="btn" id="btnDouble">Double</button>
+            <button class="btn" id="btnSplit">Split</button>
+          </div>
+          <div class="controller-group" id="betActions">
+            <select class="btn" id="selBet">
+              <option value="5">Bet 5</option>
+              <option value="10" selected>Bet 10</option>
+              <option value="25">Bet 25</option>
+              <option value="50">Bet 50</option>
+              <option value="100">Bet 100</option>
+            </select>
+            <button class="btn" id="btnDeal">Deal</button>
+          </div>
+        </div>
       </div>
     </section>
     <section class="bottom-menu">
-      <div class="action-bar-grid" id="playActions">
-        <button class="btn" id="btnHit">Hit</button>
-        <button class="btn" id="btnStand">Stand</button>
-        <button class="btn" id="btnDouble">Double</button>
-        <button class="btn" id="btnSplit">Split</button>
-      </div>
-      <div class="match-setup-row" id="betActions">
-        <select class="btn" id="selBet">
-          <option value="5">Bet 5</option>
-          <option value="10" selected>Bet 10</option>
-          <option value="25">Bet 25</option>
-          <option value="50">Bet 50</option>
-          <option value="100">Bet 100</option>
-        </select>
-        <button class="btn" id="btnDeal" style="flex:1 1 0;">Deal</button>
-      </div>
       <div class="action-bar-grid">
         <a class="btn" href="index.html">&#8592; Games</a>
         <button class="btn" id="btnReset">Reset chips</button>
@@ -304,7 +361,7 @@ select.btn:active { color: #000; background-color: #fff; }
 
   function render() {
     var html = '', i, j, h;
-    $('bank').innerHTML = 'Chips: <b>' + chips + '</b>' + (phase === 'play' ? ' &nbsp;&middot;&nbsp; In play: ' + inPlay() : '');
+    $('bank').innerHTML = '<div>Chips: <b>' + chips + '</b></div>' + (phase === 'play' ? '<div>In play: <b>' + inPlay() + '</b></div>' : '');
 
     if (dealer.length) {
       for (i = 0; i < dealer.length; i++) html += (i === 1 && phase === 'play') ? '<div class="card back"><span></span></div>' : cardHtml(dealer[i]);
@@ -324,7 +381,7 @@ select.btn:active { color: #000; background-color: #fff; }
       if (phase === 'over' && hands.length > 1) info += ' &middot; ' + h.result;
       html += '<div class="hand' + (phase === 'play' && i === active && hands.length > 1 ? ' active' : '') + '">' + cards + '<div class="tot">' + info + '</div></div>';
     }
-    $('player').innerHTML = html || '<div style="padding-top:30px">Choose a bet and tap Deal.</div>';
+    $('player').innerHTML = html || '<div style="padding-top:36px">Choose a bet and tap Deal.</div>';
 
     var playing = phase === 'play';
     $('playActions').style.display = playing ? '' : 'none';

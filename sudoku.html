@@ -73,7 +73,7 @@ select.btn:active { color: #000; background-color: #fff; }
   border-bottom: 1px solid #000; cursor: pointer;
 }
 .help h2:after { content: "▴"; float: right; font-size: 18px; }
-.help.closed h2:after { content: "+"; }}
+.help.closed h2:after { content: "+"; }
 /* ===== Game specific ===== */
 table.board { border-collapse: collapse; margin: 0 auto; border: 3px solid #000; }
 table.board td {
@@ -88,10 +88,22 @@ table.board td.same { background: #bdbdbd; }
 table.board td.sel { background: #000; color: #fff; }
 table.board td.bad { text-decoration: line-through underline; }
 .nt { font-family: "Courier New", Courier, monospace; font-weight: normal; line-height: 1.05; white-space: nowrap; }
-table.pad { border-collapse: collapse; margin: 0 auto; }
+.game-area {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 2px 0;
+  box-sizing: border-box;
+}
+.board-wrap { flex: 0 0 auto; text-align: center; }
+.pad-wrap { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+table.pad { border-collapse: separate; border-spacing: 0 2px; margin: 0 auto; }
 table.pad td { padding: 0; text-align: center; }
-.btn.kp { padding: 0; line-height: 1.1; font-size: 22px; min-width: 0; }
-.btn.kp .cnt { font-size: 12px; font-weight: normal; }
+.btn.kp { padding: 0; line-height: 1.1; font-size: 20px; min-width: 0; box-sizing: border-box; }
+.btn.kp .cnt { font-size: 11px; font-weight: normal; }
 </style>
 </head>
 <body>
@@ -99,10 +111,16 @@ table.pad td { padding: 0; text-align: center; }
   <main class="main-layout">
     <section class="board-column">
       <div class="status" id="status"></div>
-      <div class="wrap"><table class="board" id="board"></table></div>
+      <div class="game-area">
+        <div class="board-wrap">
+          <table class="board" id="board"></table>
+        </div>
+        <div class="pad-wrap">
+          <table class="pad" id="pad"></table>
+        </div>
+      </div>
     </section>
     <section class="bottom-menu">
-      <table class="pad" id="pad"></table>
       <div class="action-bar-grid">
         <a class="btn" href="index.html">&#8592; Games</a>
         <button class="btn" id="btnNotes">Notes</button>
@@ -121,7 +139,7 @@ table.pad td { padding: 0; text-align: center; }
       </div>
     </section>
   </main>
-  <div class="help">
+  <div class="help closed">
     <h2>How to play</h2>
     Fill the grid so every row, every column and every 3&times;3 box contains the digits 1 to 9 exactly once.
     Tap a square to select it, then tap a number below. Bold numbers are given and cannot be changed.
@@ -249,8 +267,8 @@ table.pad td { padding: 0; text-align: center; }
   function cellSize() {
     var w = window.innerWidth || document.documentElement.clientWidth || 600;
     var h = window.innerHeight || document.documentElement.clientHeight || 800;
-    var s = Math.floor(Math.min(w - 24, h - 260) / 9);
-    return Math.max(34, Math.min(72, s));
+    var s = Math.floor(Math.min((w - 80) / 9, (h - 185) / 9));
+    return Math.max(34, Math.min(68, s));
   }
 
   function newGame() {
@@ -312,11 +330,13 @@ table.pad td { padding: 0; text-align: center; }
     tds = boardEl.getElementsByTagName('td');
     cache = [];
 
-    var w = window.innerWidth || document.documentElement.clientWidth || 600;
-    var kw = Math.max(36, Math.min(64, Math.floor((w - 16) / 9) - 8));
-    html = '<tr>';
-    for (k = 1; k <= 9; k++) html += '<td><button class="btn kp" data-d="' + k + '" style="width:' + kw + 'px;height:56px"></button></td>';
-    html += '</tr>';
+    var kw = Math.max(44, Math.min(58, Math.floor(s * 1.1)));
+    var kh = s;
+    var kfs = Math.max(16, Math.floor(s * 0.42));
+    html = '';
+    for (k = 1; k <= 9; k++) {
+      html += '<tr><td><button class="btn kp" data-d="' + k + '" style="width:' + kw + 'px;height:' + kh + 'px;font-size:' + kfs + 'px"></button></td></tr>';
+    }
     padEl.innerHTML = html;
     keys = padEl.getElementsByTagName('button');
   }
@@ -471,6 +491,7 @@ table.pad td { padding: 0; text-align: center; }
 
   var savedDiff = store('sudoku.diff');
   if (savedDiff && GIVENS[savedDiff]) selDiff.value = savedDiff;
+  window.onresize = function () { build(); render(); };
   build();
   if (load()) render(); else newGame();
 })();

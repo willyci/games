@@ -104,9 +104,34 @@ select.btn:active { color: #000; background-color: #fff; }
 .help h2:after { content: "▴"; float: right; font-size: 18px; }
 .help.closed h2:after { content: "+"; }
 /* ===== Game specific ===== */
-.hint { font-size: 16px; text-align: center; padding: 2px 8px; }
-.stats { font-size: 15px; text-align: center; padding: 2px 8px 4px; color: #333; }
-table.word { border-collapse: separate; border-spacing: 8px 0; margin: 4px auto 8px; }
+.art-word-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 2px 0 6px;
+}
+.art-wrap {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.word-side-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.hint { font-size: 16px; text-align: center; padding: 2px 4px; }
+.stats { font-size: 14px; text-align: center; padding: 2px 8px 4px; color: #333; }
+table.word { border-collapse: separate; border-spacing: 5px 0; margin: 0 auto; }
 table.word td { text-align: center; vertical-align: bottom; font-weight: bold; border-bottom: 3px solid #000; padding: 0; }
 table.kb { border-collapse: separate; border-spacing: 3px; margin: 0 auto; }
 table.kb td { padding: 0; }
@@ -143,23 +168,29 @@ table.kb td { padding: 0; }
         <button class="btn" id="btnStart">Start guessing</button>
       </div>
       <div class="wrap" id="game">
-        <svg id="art" width="200" height="220" viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg">
-          <g stroke="#000" stroke-width="5" fill="none" stroke-linecap="square">
-            <line x1="15" y1="210" x2="150" y2="210"/>
-            <line x1="50" y1="210" x2="50" y2="15"/>
-            <line x1="47" y1="15" x2="143" y2="15"/>
-            <line x1="50" y1="48" x2="83" y2="15"/>
-            <line x1="140" y1="15" x2="140" y2="45"/>
-            <circle id="p0" cx="140" cy="65" r="20"/>
-            <line id="p1" x1="140" y1="85" x2="140" y2="145"/>
-            <line id="p2" x1="140" y1="100" x2="110" y2="128"/>
-            <line id="p3" x1="140" y1="100" x2="170" y2="128"/>
-            <line id="p4" x1="140" y1="145" x2="115" y2="188"/>
-            <line id="p5" x1="140" y1="145" x2="165" y2="188"/>
-          </g>
-        </svg>
-        <div class="hint" id="hint"></div>
-        <table class="word" id="word"></table>
+        <div class="art-word-row">
+          <div class="art-wrap">
+            <svg id="art" width="130" height="143" viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg">
+              <g stroke="#000" stroke-width="5" fill="none" stroke-linecap="square">
+                <line x1="15" y1="210" x2="150" y2="210"/>
+                <line x1="50" y1="210" x2="50" y2="15"/>
+                <line x1="47" y1="15" x2="143" y2="15"/>
+                <line x1="50" y1="48" x2="83" y2="15"/>
+                <line x1="140" y1="15" x2="140" y2="45"/>
+                <circle id="p0" cx="140" cy="65" r="20"/>
+                <line id="p1" x1="140" y1="85" x2="140" y2="145"/>
+                <line id="p2" x1="140" y1="100" x2="110" y2="128"/>
+                <line id="p3" x1="140" y1="100" x2="170" y2="128"/>
+                <line id="p4" x1="140" y1="145" x2="115" y2="188"/>
+                <line id="p5" x1="140" y1="145" x2="165" y2="188"/>
+              </g>
+            </svg>
+          </div>
+          <div class="word-side-wrap" id="wordSideWrap">
+            <div class="hint" id="hint"></div>
+            <table class="word" id="word"></table>
+          </div>
+        </div>
         <div id="kb"></div>
         <div class="stats" id="stats"></div>
       </div>
@@ -233,14 +264,16 @@ table.kb td { padding: 0; }
   })();
 
   function sizeArt() {
-    var h = Math.max(120, Math.min(220, Math.floor(vh() * 0.27)));
+    var h = Math.max(105, Math.min(160, Math.floor(vh() * 0.22)));
     art.setAttribute('height', String(h));
     art.setAttribute('width', String(Math.round(h * 200 / 220)));
   }
 
   function buildKeyboard() {
-    var w = vw(), kw = Math.max(32, Math.min(60, Math.floor((w - 16) / 10) - 8)), kh = 52, html = '', r, i, ch;
-    var fs = Math.max(18, Math.min(26, Math.floor(kw * 0.45)));
+    var w = vw(), kw = Math.max(30, Math.min(56, Math.floor((w - 16) / 10) - 6));
+    var kh = Math.max(36, Math.min(46, Math.floor(vh() * 0.065)));
+    var html = '', r, i, ch;
+    var fs = Math.max(16, Math.min(24, Math.floor(kw * 0.45)));
     for (r = 0; r < ROWS.length; r++) {
       html += '<table class="kb"><tr>';
       for (i = 0; i < ROWS[r].length; i++) {
@@ -259,9 +292,12 @@ table.kb td { padding: 0; }
   }
 
   function render() {
-    var i, ch, html = '<tr>', w = vw();
-    var cw = Math.max(18, Math.min(46, Math.floor((w - 24) / Math.max(1, word.length)) - 12));
-    var fs = Math.max(18, Math.min(40, Math.floor(cw * 0.85)));
+    var i, ch, html = '<tr>';
+    var wordSide = document.getElementById('wordSideWrap');
+    var availW = (wordSide && wordSide.clientWidth > 100) ? wordSide.clientWidth : (vw() - 160);
+    var len = Math.max(1, word.length);
+    var cw = Math.max(16, Math.min(44, Math.floor((availW - (len * 6) - 10) / len)));
+    var fs = Math.max(16, Math.min(36, Math.floor(cw * 0.85)));
     for (i = 0; i < word.length; i++) {
       ch = word.charAt(i);
       if (guessed[ch]) html += '<td style="width:' + cw + 'px;height:' + (fs + 10) + 'px;font-size:' + fs + 'px">' + ch + '</td>';
@@ -403,6 +439,7 @@ table.kb td { padding: 0; }
   var sv = store('hangman.cat'); if (sv) selCat.value = sv;
   if (!selCat.value) selCat.value = 'Any';
   sv = store('hangman.mode'); if (sv) selMode.value = sv;
+  window.onresize = function () { sizeArt(); buildKeyboard(); render(); };
   sizeArt();
   buildKeyboard();
   newGame();
