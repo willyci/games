@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Poker Solitaire</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.app-container {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.main-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.board-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.bottom-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.action-bar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0;
+  min-width: 60px;
+  margin: 0;
+}
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 44px; min-height: 36px; line-height: 32px;
+  padding: 0 8px; margin: 0;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 15px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 1px; top: 1px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; cursor: default; }
+
+.status {
+  text-align: center; font-size: 15px; line-height: 1.25; padding: 5px 8px; min-height: 22px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px; width: 100%; box-sizing: border-box;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+
+.help {
+  font-size: 14px; line-height: 1.4; margin: 4px 0 14px; padding: 0 12px 10px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 36px; padding-bottom: 0; }
+.help h2 {
+  font-size: 15px; margin: 0 -12px 6px; padding: 0 12px; height: 36px; line-height: 36px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "▴"; float: right; font-size: 16px; }
+.help.closed h2:after { content: "+"; }
+
+/* ===== Board & Card Styles ===== */
+.board-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+.poker-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr) 90px;
+  grid-template-rows: repeat(5, auto) 40px;
+  gap: 4px;
+  width: 100%;
+  max-width: 580px;
+  box-sizing: border-box;
+}
+
+/* Slots */
+.grid-slot {
+  aspect-ratio: 5 / 7;
+  min-height: 60px;
+  max-height: 88px;
+  border: 1.5px dashed #888;
+  border-radius: 5px;
+  background: #fafafa;
+  position: relative;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.grid-slot:hover {
+  border-color: #000;
+  background: #f0f0f0;
+}
+.grid-slot.filled {
+  border: 1.5px solid #000;
+  border-style: solid;
+  background: #fff;
+  box-shadow: 1px 1px 0 rgba(0,0,0,0.6);
+  cursor: default;
+}
+.grid-slot.last-placed {
+  outline: 2px solid #000;
+}
+
+/* Cards inside slots */
+.card-content {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 3px 4px;
+  box-sizing: border-box;
+}
+.card-rank {
+  font-weight: bold;
+  font-size: 16px;
+  line-height: 1;
+}
+.card-suit-corner {
+  font-size: 13px;
+  line-height: 1;
+  margin-top: 1px;
+}
+.card-suit-center {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+  line-height: 1;
+}
+.is-red .card-suit-corner,
+.is-red .card-suit-center {
+  color: #fff;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+}
+
+/* Evaluators */
+.row-eval {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 2px 4px;
+  border-left: 2px solid #000;
+  font-size: 11px;
+  line-height: 1.2;
+}
+.row-eval .hand-name {
+  font-size: 10px;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 86px;
+}
+.row-eval .hand-pts {
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.col-eval {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-top: 2px solid #000;
+  padding-top: 2px;
+  font-size: 11px;
+  line-height: 1.15;
+  text-align: center;
+}
+.col-eval .hand-pts {
+  font-weight: bold;
+  font-size: 13px;
+}
+.col-eval .hand-name {
+  font-size: 10px;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 58px;
+}
+
+.corner-total {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-top: 2px solid #000;
+  border-left: 2px solid #000;
+  background: #eee;
+  padding: 2px;
+  font-weight: bold;
+}
+.corner-total .lbl { font-size: 10px; text-transform: uppercase; }
+.corner-total .tot { font-size: 16px; }
+
+/* Scoring Table in Help */
+.help table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 6px;
+  font-size: 13px;
+}
+.help th, .help td {
+  border: 1px solid #999;
+  padding: 3px 6px;
+  text-align: left;
+}
+.help th { background: #eee; }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status">
+        Next: <b id="nextCardTxt">-</b> (<span id="deckRemain">25</span> left) &nbsp;|&nbsp; Score: <b id="curScore">0</b> &nbsp;|&nbsp; Best: <b id="bestScore">0</b>
+      </div>
+      <div class="board-container">
+        <div class="poker-grid" id="grid">
+          <!-- 5x5 slots generated by JS -->
+        </div>
+      </div>
+    </section>
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnUndo" disabled>Undo</button>
+        <button class="btn" id="btnNew">New</button>
+        <button class="btn" id="btnRules">Rules</button>
+      </div>
+    </section>
+  </main>
+
+  <div class="help closed" id="helpBox">
+    <h2>How to play (Poker Solitaire)</h2>
+    <b>Objective:</b> Place 25 cards into the 5&times;5 grid one at a time. Each of the 5 horizontal rows and 5 vertical columns forms a poker hand (10 hands total).
+    <table>
+      <tr><th>Hand</th><th>Pts</th><th>Hand</th><th>Pts</th></tr>
+      <tr><td>Royal Flush</td><td>30</td><td>Straight</td><td>12</td></tr>
+      <tr><td>Straight Flush</td><td>30</td><td>Three of a Kind</td><td>6</td></tr>
+      <tr><td>Four of a Kind</td><td>16</td><td>Two Pair</td><td>3</td></tr>
+      <tr><td>Full House</td><td>10</td><td>One Pair</td><td>1</td></tr>
+      <tr><td>Flush</td><td>5</td><td>High Card</td><td>0</td></tr>
+    </table>
+    <div style="font-size: 12px; color: #444; margin-top: 4px;">Aim for 200+ points for expert level! Top theoretical score is 276.</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var SUITS = ['♠', '♥', '♦', '♣'];
+  var RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+  var RANK_VALUES = {
+    'A': 14, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7,
+    '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13
+  };
+
+  // State
+  var deck = [];
+  var deckIndex = 0;
+  var board = []; // 25 elements: null or { rank, suit, isRed }
+  var moveHistory = []; // list of { index, card }
+  var bestScore = 0;
+
+  try {
+    bestScore = parseInt(localStorage.getItem('poker_solitaire_best') || '0', 10) || 0;
+  } catch(e) {}
+
+  var gridEl = document.getElementById('grid');
+  var btnUndo = document.getElementById('btnUndo');
+  var btnNew = document.getElementById('btnNew');
+  var btnRules = document.getElementById('btnRules');
+  var helpBox = document.getElementById('helpBox');
+  var statusEl = document.getElementById('status');
+  var nextCardTxt = document.getElementById('nextCardTxt');
+  var curScoreEl = document.getElementById('curScore');
+  var bestScoreEl = document.getElementById('bestScore');
+  var deckRemainEl = document.getElementById('deckRemain');
+
+  bestScoreEl.textContent = bestScore;
+
+  // Rules accordion toggle
+  btnRules.addEventListener('click', function() {
+    helpBox.classList.toggle('closed');
+  });
+  helpBox.querySelector('h2').addEventListener('click', function() {
+    helpBox.classList.toggle('closed');
+  });
+
+  btnNew.addEventListener('click', function() {
+    if (moveHistory.length > 0 && moveHistory.length < 25) {
+      if (!confirm('Start a new deal? Current game progress will be lost.')) return;
+    }
+    startNewGame();
+  });
+
+  btnUndo.addEventListener('click', function() {
+    undoMove();
+  });
+
+  function createDeck() {
+    var d = [];
+    for (var s = 0; s < SUITS.length; s++) {
+      var suit = SUITS[s];
+      var isRed = (suit === '♥' || suit === '♦');
+      for (var r = 0; r < RANKS.length; r++) {
+        d.push({
+          rank: RANKS[r],
+          suit: suit,
+          isRed: isRed,
+          val: RANK_VALUES[RANKS[r]]
+        });
+      }
+    }
+    for (var i = d.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = d[i];
+      d[i] = d[j];
+      d[j] = tmp;
+    }
+    return d;
+  }
+
+  function startNewGame() {
+    deck = createDeck();
+    deckIndex = 0;
+    board = new Array(25).fill(null);
+    moveHistory = [];
+    statusEl.className = 'status';
+    renderGridStructure();
+    updateUI();
+  }
+
+  function renderGridStructure() {
+    gridEl.innerHTML = '';
+    for (var r = 0; r < 5; r++) {
+      for (var c = 0; c < 5; c++) {
+        var idx = r * 5 + c;
+        var slot = document.createElement('div');
+        slot.className = 'grid-slot';
+        slot.id = 'slot-' + idx;
+        slot.dataset.index = idx;
+        slot.addEventListener('click', handleSlotClick);
+        gridEl.appendChild(slot);
+      }
+      var rowEval = document.createElement('div');
+      rowEval.className = 'row-eval';
+      rowEval.id = 'row-eval-' + r;
+      rowEval.innerHTML = '<span class="hand-pts">0</span><span class="hand-name">-</span>';
+      gridEl.appendChild(rowEval);
+    }
+
+    for (var c = 0; c < 5; c++) {
+      var colEval = document.createElement('div');
+      colEval.className = 'col-eval';
+      colEval.id = 'col-eval-' + c;
+      colEval.innerHTML = '<span class="hand-pts">0</span><span class="hand-name">-</span>';
+      gridEl.appendChild(colEval);
+    }
+    var corner = document.createElement('div');
+    corner.className = 'corner-total';
+    corner.id = 'corner-total';
+    corner.innerHTML = '<span class="lbl">Total</span><span class="tot" id="cornerTotalVal">0</span>';
+    gridEl.appendChild(corner);
+  }
+
+  function handleSlotClick(e) {
+    var slot = e.currentTarget;
+    var idx = parseInt(slot.dataset.index, 10);
+    if (board[idx] !== null) return;
+    if (deckIndex >= 25) return;
+
+    var card = deck[deckIndex];
+    board[idx] = card;
+    moveHistory.push({ index: idx, card: card });
+    deckIndex++;
+
+    updateUI();
+
+    if (moveHistory.length === 25) {
+      handleGameOver();
+    }
+  }
+
+  function undoMove() {
+    if (moveHistory.length === 0) return;
+    var last = moveHistory.pop();
+    board[last.index] = null;
+    deckIndex--;
+    statusEl.className = 'status';
+    updateUI();
+  }
+
+  function evaluatePokerHand(cards) {
+    if (!cards || cards.length === 0) {
+      return { name: '-', pts: 0, count: 0 };
+    }
+    if (cards.length < 5) {
+      return { name: cards.length + '/5 cards', pts: 0, count: cards.length };
+    }
+
+    var ranks = cards.map(function(c) { return c.val; }).sort(function(a, b) { return a - b; });
+    var suits = cards.map(function(c) { return c.suit; });
+
+    var isFlush = (suits[0] === suits[1] && suits[1] === suits[2] && suits[2] === suits[3] && suits[3] === suits[4]);
+
+    var isStraight = false;
+    var isRoyal = false;
+    if (ranks[1] === ranks[0] + 1 &&
+        ranks[2] === ranks[1] + 1 &&
+        ranks[3] === ranks[2] + 1 &&
+        ranks[4] === ranks[3] + 1) {
+      isStraight = true;
+      if (ranks[0] === 10) isRoyal = true;
+    } else if (ranks[0] === 2 && ranks[1] === 3 && ranks[2] === 4 && ranks[3] === 5 && ranks[4] === 14) {
+      isStraight = true;
+    }
+
+    if (isFlush && isRoyal) return { name: 'Royal Flush', pts: 30, count: 5 };
+    if (isFlush && isStraight) return { name: 'Straight Flush', pts: 30, count: 5 };
+
+    var counts = {};
+    for (var i = 0; i < ranks.length; i++) {
+      counts[ranks[i]] = (counts[ranks[i]] || 0) + 1;
+    }
+    var freq = Object.keys(counts).map(function(k) { return counts[k]; }).sort(function(a, b) { return b - a; });
+
+    if (freq[0] === 4) return { name: '4 of a Kind', pts: 16, count: 5 };
+    if (isStraight) return { name: 'Straight', pts: 12, count: 5 };
+    if (freq[0] === 3 && freq[1] === 2) return { name: 'Full House', pts: 10, count: 5 };
+    if (freq[0] === 3) return { name: '3 of a Kind', pts: 6, count: 5 };
+    if (isFlush) return { name: 'Flush', pts: 5, count: 5 };
+    if (freq[0] === 2 && freq[1] === 2) return { name: 'Two Pair', pts: 3, count: 5 };
+    if (freq[0] === 2) return { name: 'One Pair', pts: 1, count: 5 };
+
+    return { name: 'High Card', pts: 0, count: 5 };
+  }
+
+  function updateUI() {
+    var lastPlacedIndex = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1].index : -1;
+
+    for (var i = 0; i < 25; i++) {
+      var slot = document.getElementById('slot-' + i);
+      var c = board[i];
+      if (c) {
+        slot.className = 'grid-slot filled' + (c.isRed ? ' is-red' : '') + (i === lastPlacedIndex ? ' last-placed' : '');
+        slot.innerHTML =
+          '<div class="card-content">' +
+            '<div>' +
+              '<div class="card-rank">' + c.rank + '</div>' +
+              '<div class="card-suit-corner">' + c.suit + '</div>' +
+            '</div>' +
+            '<div class="card-suit-center">' + c.suit + '</div>' +
+          '</div>';
+      } else {
+        slot.className = 'grid-slot';
+        slot.innerHTML = '';
+      }
+    }
+
+    if (deckIndex < 25) {
+      var nextCard = deck[deckIndex];
+      nextCardTxt.innerHTML = (nextCard.isRed ? '<span style="color:#666">' : '<span>') + nextCard.rank + nextCard.suit + '</span>';
+      deckRemainEl.textContent = (25 - deckIndex);
+    } else {
+      nextCardTxt.textContent = 'None';
+      deckRemainEl.textContent = '0';
+    }
+
+    btnUndo.disabled = (moveHistory.length === 0);
+
+    var totalPts = 0;
+    for (var r = 0; r < 5; r++) {
+      var rowCards = [];
+      for (var c = 0; c < 5; c++) {
+        var card = board[r * 5 + c];
+        if (card) rowCards.push(card);
+      }
+      var evalResult = evaluatePokerHand(rowCards);
+      totalPts += evalResult.pts;
+      var rEl = document.getElementById('row-eval-' + r);
+      if (rEl) {
+        rEl.querySelector('.hand-pts').textContent = evalResult.pts + ' pt' + (evalResult.pts === 1 ? '' : 's');
+        rEl.querySelector('.hand-name').textContent = evalResult.name;
+      }
+    }
+
+    for (var c = 0; c < 5; c++) {
+      var colCards = [];
+      for (var r = 0; r < 5; r++) {
+        var card = board[r * 5 + c];
+        if (card) colCards.push(card);
+      }
+      var evalResult = evaluatePokerHand(colCards);
+      totalPts += evalResult.pts;
+      var cEl = document.getElementById('col-eval-' + c);
+      if (cEl) {
+        cEl.querySelector('.hand-pts').textContent = evalResult.pts + ' pt' + (evalResult.pts === 1 ? '' : 's');
+        cEl.querySelector('.hand-name').textContent = evalResult.name;
+      }
+    }
+
+    curScoreEl.textContent = totalPts;
+    var cornerVal = document.getElementById('cornerTotalVal');
+    if (cornerVal) cornerVal.textContent = totalPts;
+  }
+
+  function handleGameOver() {
+    var curScore = parseInt(curScoreEl.textContent, 10) || 0;
+    statusEl.className = 'status win';
+    statusEl.textContent = 'Game Complete! Final Score: ' + curScore + ' pts' + (curScore > bestScore ? ' (New Best!)' : '');
+
+    if (curScore > bestScore) {
+      bestScore = curScore;
+      bestScoreEl.textContent = bestScore;
+      try {
+        localStorage.setItem('poker_solitaire_best', bestScore.toString());
+      } catch(e) {}
+    }
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'u' || e.key === 'U') undoMove();
+    else if (e.key === 'n' || e.key === 'N') startNewGame();
+  });
+
+  startNewGame();
+})();
+</script>
+</body>
+</html>

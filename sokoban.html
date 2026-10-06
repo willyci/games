@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Sokoban</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.app-container {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 2px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.main-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+}
+.board-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+}
+.game-area {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1px 0;
+}
+.board-wrap {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.controller-wrap {
+  flex: 0 0 120px;
+  width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
+.bottom-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+.action-bar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0;
+  min-width: 60px;
+  margin: 0;
+}
+.match-setup-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.match-setup-row select.btn {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 44px; min-height: 36px; line-height: 32px;
+  padding: 0 8px; margin: 0;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 15px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 1px; top: 1px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 24px 0 8px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='8'%3E%3Cpath d='M8 0h12L14 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 14px; line-height: 1.25; padding: 4px 8px; min-height: 20px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px;
+  width: 100%; box-sizing: border-box;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.info-box {
+  border: 2px solid #000; border-radius: 6px;
+  background: #eee; padding: 5px 4px; text-align: center;
+  font-size: 13px; line-height: 1.35; width: 100%; box-sizing: border-box;
+}
+.info-box b { font-size: 16px; }
+table.dpad { border-collapse: separate; border-spacing: 3px; margin: 0 auto; width: 100%; }
+table.dpad td { padding: 0; text-align: center; }
+.dbtn { width: 100%; height: 42px; line-height: 38px; font-size: 20px; padding: 0; }
+.help {
+  font-size: 14px; line-height: 1.4; margin: 3px 0 10px; padding: 0 12px 8px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 34px; padding-bottom: 0; }
+.help h2 {
+  font-size: 15px; margin: 0 -12px 6px; padding: 0 12px; height: 34px; line-height: 34px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "▴"; float: right; font-size: 16px; }
+.help.closed h2:after { content: "+"; }
+
+/* ===== Sokoban grid ===== */
+#board {
+  border-collapse: collapse;
+  margin: 0 auto;
+  border: 3px solid #000;
+  background: #fff;
+}
+#board td {
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+  position: relative;
+  box-sizing: border-box;
+}
+.c-wall {
+  background: #222;
+  border: 1px solid #000;
+}
+.c-floor {
+  background: #fff;
+}
+.c-target {
+  background: #fff;
+}
+.c-target:after {
+  content: "";
+  display: block;
+  position: absolute;
+  left: 30%; top: 30%; width: 40%; height: 40%;
+  border-radius: 50%;
+  border: 2.5px solid #000;
+  background: #fff;
+  box-sizing: border-box;
+}
+.box-icon {
+  width: 82%; height: 82%;
+  margin: 9% auto;
+  box-sizing: border-box;
+  border: 2.5px solid #000;
+  border-radius: 4px;
+  background: #eee;
+  position: relative;
+  z-index: 2;
+}
+.box-icon:after {
+  content: "✕";
+  display: block;
+  text-align: center;
+  line-height: 1;
+  font-size: 16px;
+  font-weight: bold;
+  color: #000;
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+.box-on-target {
+  background: #000;
+  border-color: #000;
+}
+.box-on-target:after {
+  color: #fff;
+}
+.player-icon {
+  width: 80%; height: 80%;
+  margin: 10% auto;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2.5px solid #000;
+  background: #fff;
+  position: relative;
+  z-index: 3;
+}
+.player-icon:after {
+  content: "☻";
+  display: block;
+  text-align: center;
+  line-height: 1;
+  font-size: 20px;
+  color: #000;
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+</style>
+</head>
+<body>
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status">Push all crates onto the marked targets</div>
+      <div class="game-area">
+        <div class="board-wrap">
+          <table id="board"></table>
+        </div>
+        <div class="controller-wrap">
+          <div class="info-box">
+            <div>Moves: <b id="lblMoves">0</b></div>
+            <div>Pushes: <b id="lblPushes">0</b></div>
+          </div>
+          <table class="dpad">
+            <tr><td></td><td><button class="btn dbtn" id="btnU">&#9650;</button></td><td></td></tr>
+            <tr><td><button class="btn dbtn" id="btnL">&#9664;</button></td><td></td><td><button class="btn dbtn" id="btnR">&#9654;</button></td></tr>
+            <tr><td></td><td><button class="btn dbtn" id="btnD">&#9660;</button></td><td></td></tr>
+          </table>
+        </div>
+      </div>
+    </section>
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnUndo">Undo</button>
+        <button class="btn" id="btnRestart">Restart</button>
+        <button class="btn" id="btnRules">Rules</button>
+      </div>
+      <div class="match-setup-row">
+        <select class="btn" id="selLevel">
+          <option value="0">Level 1</option>
+          <option value="1">Level 2</option>
+          <option value="2">Level 3</option>
+          <option value="3">Level 4</option>
+          <option value="4">Level 5</option>
+          <option value="5">Level 6</option>
+          <option value="6">Level 7</option>
+          <option value="7">Level 8</option>
+          <option value="8">Level 9</option>
+          <option value="9">Level 10</option>
+        </select>
+      </div>
+    </section>
+  </main>
+  <div class="help closed" id="helpBox">
+    <h2>How to play (Sokoban / 仓库番)</h2>
+    <b>Objective:</b> Push all crates (<b>✕</b>) onto the round target goals.<br>
+    <b>Rules:</b>
+    <ul>
+      <li>You can only <b>push</b> crates; you cannot pull them.</li>
+      <li>You can only push <b>one crate</b> at a time.</li>
+      <li>Avoid pushing crates into dead corners where they cannot be freed!</li>
+      <li>Use the arrow buttons, swipe on the board, or keyboard arrow keys.</li>
+      <li>Use <b>Undo</b> to reverse any mistake.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function () {
+  // 10 Classic Verified Sokoban Levels
+  // Characters: '#' wall, ' ' empty outside/inside, '.' target, '$' box, '*' box on target, '@' player, '+' player on target
+  var LEVELS = [
+    // Level 1 (Intro)
+    [
+      "  #####",
+      "###   #",
+      "# $ # ##",
+      "# #  . #",
+      "#    . #",
+      "#  @$###",
+      "######"
+    ],
+    // Level 2
+    [
+      "#####",
+      "#   #",
+      "#$#$#",
+      "#.@.#",
+      "#   #",
+      "#####"
+    ],
+    // Level 3
+    [
+      "######",
+      "# .  #",
+      "# #$ #",
+      "# .$@#",
+      "#    #",
+      "######"
+    ],
+    // Level 4
+    [
+      "  ####",
+      "###  ####",
+      "#     $ #",
+      "# #  #$ #",
+      "# . .#@ #",
+      "#########"
+    ],
+    // Level 5
+    [
+      "#######",
+      "#     #",
+      "# .$. #",
+      "# $.$ #",
+      "# .$. #",
+      "#  @  #",
+      "#######"
+    ],
+    // Level 6
+    [
+      "  #####",
+      "  #   #",
+      "  #$  #",
+      "###  $##",
+      "#  $ # #",
+      "# # .# #",
+      "# . .@ #",
+      "########"
+    ],
+    // Level 7
+    [
+      "######",
+      "#    ###",
+      "# $$@  #",
+      "# ..   #",
+      "#   ####",
+      "#####"
+    ],
+    // Level 8
+    [
+      " #######",
+      " #     #",
+      "##$### #",
+      "# @ $  #",
+      "# ..#$##",
+      "# ..  #",
+      "#######"
+    ],
+    // Level 9
+    [
+      "########",
+      "#      #",
+      "# .$$  #",
+      "# .#.$ #",
+      "# . @$ #",
+      "#      #",
+      "########"
+    ],
+    // Level 10
+    [
+      "  ######",
+      "###    #",
+      "#   $$ #",
+      "# ##.# #",
+      "#  ..# #",
+      "#  @   #",
+      "########"
+    ]
+  ];
+
+  var curLvl = 0;
+  var grid = []; // 2D array of characters
+  var rows = 0, cols = 0;
+  var px = 0, py = 0;
+  var moves = 0, pushes = 0;
+  var history = [];
+  var won = false;
+
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var lblMoves = document.getElementById('lblMoves');
+  var lblPushes = document.getElementById('lblPushes');
+  var selLevel = document.getElementById('selLevel');
+  var btnUndo = document.getElementById('btnUndo');
+  var btnRestart = document.getElementById('btnRestart');
+  var helpBox = document.getElementById('helpBox');
+  var btnRules = document.getElementById('btnRules');
+
+  function store(k, v) {
+    try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; }
+  }
+
+  function loadLevel(idx) {
+    curLvl = idx;
+    selLevel.value = String(idx);
+    store('sokoban.lvl', String(idx));
+    var raw = LEVELS[idx];
+    rows = raw.length;
+    cols = 0;
+    for (var r = 0; r < rows; r++) if (raw[r].length > cols) cols = raw[r].length;
+
+    grid = [];
+    for (var r = 0; r < rows; r++) {
+      grid[r] = [];
+      for (var c = 0; c < cols; c++) {
+        var ch = (c < raw[r].length) ? raw[r].charAt(c) : ' ';
+        grid[r][c] = ch;
+        if (ch === '@' || ch === '+') {
+          px = c; py = r;
+        }
+      }
+    }
+
+    moves = 0; pushes = 0; history = []; won = false;
+    updateStats();
+    build();
+  }
+
+  function isTarget(r, c) {
+    var orig = (c < LEVELS[curLvl][r].length) ? LEVELS[curLvl][r].charAt(c) : ' ';
+    return orig === '.' || orig === '*' || orig === '+';
+  }
+
+  function checkWin() {
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        if (grid[r][c] === '$') return false; // a box not on target
+      }
+    }
+    return true;
+  }
+
+  function tryMove(dx, dy) {
+    if (won) return;
+    var nx = px + dx;
+    var ny = py + dy;
+    if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) return;
+
+    var dest = grid[ny][nx];
+    if (dest === '#') return; // Wall
+
+    var isPush = false;
+    if (dest === '$' || dest === '*') {
+      // Pushing a box
+      var bx = nx + dx;
+      var by = ny + dy;
+      if (bx < 0 || bx >= cols || by < 0 || by >= rows) return;
+      var bdest = grid[by][bx];
+      if (bdest === '#' || bdest === '$' || bdest === '*') return; // Blocked
+
+      // Record history
+      history.push({
+        grid: grid.map(function (row) { return row.slice(); }),
+        px: px, py: py, moves: moves, pushes: pushes
+      });
+
+      // Move box
+      grid[by][bx] = isTarget(by, bx) ? '*' : '$';
+      isPush = true;
+      pushes++;
+    } else {
+      // Simple player step
+      history.push({
+        grid: grid.map(function (row) { return row.slice(); }),
+        px: px, py: py, moves: moves, pushes: pushes
+      });
+    }
+
+    // Move player
+    grid[py][px] = isTarget(py, px) ? '.' : ' ';
+    grid[ny][nx] = isTarget(ny, nx) ? '+' : '@';
+    px = nx; py = ny;
+    moves++;
+
+    won = checkWin();
+    updateStats();
+    build();
+  }
+
+  function undo() {
+    if (!history.length) return;
+    var prev = history.pop();
+    grid = prev.grid;
+    px = prev.px; py = prev.py;
+    moves = prev.moves; pushes = prev.pushes;
+    won = false;
+    updateStats();
+    build();
+  }
+
+  function updateStats() {
+    lblMoves.textContent = moves;
+    lblPushes.textContent = pushes;
+    btnUndo.disabled = history.length === 0 || won;
+    if (won) {
+      statusEl.className = 'status win';
+      statusEl.innerHTML = 'Solved Level ' + (curLvl + 1) + ' in ' + moves + ' moves! Tap Next Level below.';
+    } else {
+      statusEl.className = 'status';
+      statusEl.textContent = 'Level ' + (curLvl + 1) + ' · Moves: ' + moves + ' · Pushes: ' + pushes;
+    }
+  }
+
+  function cellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    var availW = w - 150;
+    var availH = h - 130;
+    var sW = Math.floor(availW / cols);
+    var sH = Math.floor(availH / rows);
+    var s = Math.min(sW, sH);
+    return Math.max(28, Math.min(65, s));
+  }
+
+  function build() {
+    var s = cellSize();
+    var html = '';
+    for (var r = 0; r < rows; r++) {
+      html += '<tr>';
+      for (var c = 0; c < cols; c++) {
+        var ch = grid[r][c];
+        var cls = 'c-floor';
+        if (ch === '#') cls = 'c-wall';
+        else if (ch === '.' || ch === '*' || ch === '+') cls = 'c-target';
+
+        var inner = '';
+        if (ch === '$') inner = '<div class="box-icon"></div>';
+        else if (ch === '*') inner = '<div class="box-icon box-on-target"></div>';
+        else if (ch === '@' || ch === '+') inner = '<div class="player-icon"></div>';
+
+        html += '<td class="' + cls + '" style="width:' + s + 'px;height:' + s + 'px">' + inner + '</td>';
+      }
+      html += '</tr>';
+    }
+    boardEl.innerHTML = html;
+  }
+
+  // D-Pad and Keyboard Controls
+  document.getElementById('btnU').onclick = function () { tryMove(0, -1); };
+  document.getElementById('btnD').onclick = function () { tryMove(0, 1); };
+  document.getElementById('btnL').onclick = function () { tryMove(-1, 0); };
+  document.getElementById('btnR').onclick = function () { tryMove(1, 0); };
+  btnUndo.onclick = undo;
+  btnRestart.onclick = function () { loadLevel(curLvl); };
+
+  selLevel.onchange = function () {
+    loadLevel(parseInt(selLevel.value, 10));
+  };
+
+  btnRules.onclick = function () {
+    helpBox.className = (helpBox.className === 'help closed') ? 'help' : 'help closed';
+  };
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowUp') { e.preventDefault(); tryMove(0, -1); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); tryMove(0, 1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); tryMove(-1, 0); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); tryMove(1, 0); }
+    else if (e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+  });
+
+  // Swipe on board
+  var touchX = 0, touchY = 0;
+  boardEl.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) return;
+    touchX = e.touches[0].clientX;
+    touchY = e.touches[0].clientY;
+  }, { passive: true });
+
+  boardEl.addEventListener('touchend', function (e) {
+    var dx = e.changedTouches[0].clientX - touchX;
+    var dy = e.changedTouches[0].clientY - touchY;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) > 24) {
+      if (Math.abs(dx) > Math.abs(dy)) tryMove(dx > 0 ? 1 : -1, 0);
+      else tryMove(0, dy > 0 ? 1 : -1);
+    }
+  }, { passive: true });
+
+  window.addEventListener('resize', build);
+
+  var saved = store('sokoban.lvl');
+  loadLevel(saved ? parseInt(saved, 10) : 0);
+})();
+</script>
+<script>
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className.indexOf('help') >= 0) setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    h.onclick = function () { box.className = box.className.indexOf('closed') >= 0 ? 'help' : 'help closed'; };
+  }
+})();
+</script>
+</body>
+</html>

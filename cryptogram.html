@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Cryptogram</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.app-container {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.main-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.board-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.bottom-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.action-bar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0;
+  min-width: 55px;
+  margin: 0;
+}
+.match-setup-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.match-setup-row select.btn {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 44px; min-height: 36px; line-height: 32px;
+  padding: 0 8px; margin: 0;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 15px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 1px; top: 1px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; cursor: default; }
+select.btn {
+  padding: 0 28px 0 10px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='8'%3E%3Cpath d='M8 0h12L14 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+
+.status {
+  text-align: center; font-size: 15px; line-height: 1.25; padding: 5px 8px; min-height: 22px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px; width: 100%; box-sizing: border-box;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+
+.help {
+  font-size: 14px; line-height: 1.4; margin: 4px 0 14px; padding: 0 12px 10px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 36px; padding-bottom: 0; }
+.help h2 {
+  font-size: 15px; margin: 0 -12px 6px; padding: 0 12px; height: 36px; line-height: 36px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "▴"; float: right; font-size: 16px; }
+.help.closed h2:after { content: "+"; }
+
+/* ===== Cryptogram Board ===== */
+.crypto-board {
+  border: 2px solid #000;
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px 10px;
+  min-height: 160px;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-content: flex-start;
+  line-height: 1;
+}
+.crypto-word {
+  display: inline-flex;
+  gap: 3px;
+  margin-bottom: 4px;
+}
+.crypto-char {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 19px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.crypto-char .guess {
+  font-size: 17px;
+  font-weight: bold;
+  height: 22px;
+  line-height: 22px;
+  text-align: center;
+  border-bottom: 2px solid #000;
+  width: 100%;
+}
+.crypto-char .cipher {
+  font-size: 13px;
+  color: #333;
+  margin-top: 2px;
+  text-align: center;
+  width: 100%;
+}
+.crypto-char.selected {
+  background: #000;
+  color: #fff;
+  border-radius: 3px;
+}
+.crypto-char.selected .guess {
+  color: #fff;
+  border-bottom-color: #fff;
+}
+.crypto-char.selected .cipher {
+  color: #fff;
+  font-weight: bold;
+}
+.crypto-char.locked .guess {
+  color: #222;
+}
+
+.crypto-punct {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  font-size: 17px;
+  font-weight: bold;
+  min-width: 6px;
+  padding-bottom: 14px;
+}
+
+.author-box {
+  width: 100%;
+  text-align: right;
+  font-style: italic;
+  font-size: 14px;
+  margin-top: 2px;
+  padding-right: 4px;
+  color: #444;
+}
+
+/* Keyboard */
+.keyboard {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 2px;
+}
+.kb-row {
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+}
+.key {
+  flex: 1 1 0;
+  max-width: 44px;
+  min-height: 35px;
+  line-height: 33px;
+  border: 1.5px solid #000;
+  border-radius: 4px;
+  background: #fff;
+  color: #000;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 1px 1px 0 #000;
+  box-sizing: border-box;
+}
+.key:active {
+  background: #000;
+  color: #fff;
+}
+.key.wide {
+  flex: 1.5 1 0;
+  max-width: 65px;
+  font-size: 13px;
+}
+.key.used {
+  background: #e8e8e8;
+  color: #888;
+  border-color: #888;
+}
+</style>
+</head>
+<body>
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status">Select any letter to begin solving</div>
+      <div class="crypto-board" id="board">
+        <!-- Words & Characters -->
+      </div>
+      <div class="author-box" id="authorBox">- Author</div>
+
+      <div class="keyboard" id="keyboard">
+        <div class="kb-row" id="kbRow1"></div>
+        <div class="kb-row" id="kbRow2"></div>
+        <div class="kb-row" id="kbRow3"></div>
+      </div>
+    </section>
+
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnHint">Hint</button>
+        <button class="btn" id="btnClear">Clear</button>
+        <button class="btn" id="btnPrev">&lt; Prev</button>
+        <button class="btn" id="btnNext">Next &gt;</button>
+      </div>
+      <div class="match-setup-row">
+        <select class="btn" id="selQuote">
+          <!-- Quote dropdown items generated by JS -->
+        </select>
+      </div>
+    </section>
+  </main>
+
+  <div class="help closed" id="helpBox">
+    <h2>How to play (Cryptogram)</h2>
+    <b>Objective:</b> Decode a famous quotation by substituting each cipher letter with its original alphabet letter.
+    <ul>
+      <li><b>Solve:</b> Tap any cipher letter in the text to select it, then tap a letter on the keyboard (or type on your physical keyboard). All occurrences of that cipher letter will be updated automatically!</li>
+      <li><b>Delete:</b> Tap <b>DEL</b> or Backspace to erase your guess for the selected letter.</li>
+      <li><b>Next letter:</b> Tap <b>SKIP</b> or Tab/Arrow to move to the next unassigned letter.</li>
+      <li><b>Hint:</b> Reveals one correct letter in the quote.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function() {
+  var QUOTES = [
+    { text: "Be yourself; everyone else is already taken.", author: "Oscar Wilde" },
+    { text: "Two things are infinite: the universe and human stupidity; and I'm not sure about the universe.", author: "Albert Einstein" },
+    { text: "In the middle of difficulty lies opportunity.", author: "Albert Einstein" },
+    { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+    { text: "Whenever you find yourself on the side of the majority, it is time to pause and reflect.", author: "Mark Twain" },
+    { text: "Life is what happens when you're busy making other plans.", author: "John Lennon" },
+    { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
+    { text: "The only true wisdom is in knowing you know nothing.", author: "Socrates" },
+    { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+    { text: "You will face many defeats in life, but never let yourself be defeated.", author: "Maya Angelou" },
+    { text: "Do not go where the path may lead, go instead where there is no path and leave a trail.", author: "Ralph Waldo Emerson" },
+    { text: "The best way to predict the future is to create it.", author: "Peter Drucker" },
+    { text: "Tell me and I forget. Teach me and I remember. Involve me and I learn.", author: "Benjamin Franklin" },
+    { text: "An investment in knowledge pays the best interest.", author: "Benjamin Franklin" },
+    { text: "In three words I can sum up everything I've learned about life: it goes on.", author: "Robert Frost" },
+    { text: "Happiness is not something readymade. It comes from your own actions.", author: "Dalai Lama" },
+    { text: "There is no charm equal to tenderness of heart.", author: "Jane Austen" },
+    { text: "It is never too late to be what you might have been.", author: "George Eliot" },
+    { text: "Everything has beauty, but not everyone sees it.", author: "Confucius" },
+    { text: "To be yourself in a world that is constantly trying to make you something else is the greatest accomplishment.", author: "Ralph Waldo Emerson" },
+    { text: "The only thing we have to fear is fear itself.", author: "Franklin D. Roosevelt" },
+    { text: "Keep your face always toward the sunshine and shadows will fall behind you.", author: "Walt Whitman" },
+    { text: "Whatever you are, be a good one.", author: "Abraham Lincoln" },
+    { text: "Those who dare to fail miserably can achieve greatly.", author: "John F. Kennedy" },
+    { text: "The mind is everything. What you think you become.", author: "Buddha" }
+  ];
+
+  var KB_LAYOUT = [
+    ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+    ['DEL', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'SKIP']
+  ];
+
+  var currentQuoteIndex = 0;
+  var cipherMap = {};
+  var reverseCipherMap = {};
+  var userMap = {};
+  var lockedMap = {};
+  var selectedCipherChar = null;
+  var isSolved = false;
+
+  var boardEl = document.getElementById('board');
+  var authorBox = document.getElementById('authorBox');
+  var selQuote = document.getElementById('selQuote');
+  var statusEl = document.getElementById('status');
+  var btnPrev = document.getElementById('btnPrev');
+  var btnNext = document.getElementById('btnNext');
+  var btnHint = document.getElementById('btnHint');
+  var btnClear = document.getElementById('btnClear');
+  var helpBox = document.getElementById('helpBox');
+
+  helpBox.querySelector('h2').addEventListener('click', function() {
+    helpBox.classList.toggle('closed');
+  });
+
+  for (var i = 0; i < QUOTES.length; i++) {
+    var opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = '#' + (i + 1) + ' - ' + QUOTES[i].author;
+    selQuote.appendChild(opt);
+  }
+
+  selQuote.addEventListener('change', function() {
+    loadQuote(parseInt(selQuote.value, 10));
+  });
+  btnPrev.addEventListener('click', function() {
+    var idx = (currentQuoteIndex - 1 + QUOTES.length) % QUOTES.length;
+    loadQuote(idx);
+  });
+  btnNext.addEventListener('click', function() {
+    var idx = (currentQuoteIndex + 1) % QUOTES.length;
+    loadQuote(idx);
+  });
+  btnHint.addEventListener('click', giveHint);
+  btnClear.addEventListener('click', function() {
+    if (confirm('Clear all your guesses for this puzzle?')) {
+      userMap = {};
+      for (var c in lockedMap) {
+        if (lockedMap[c]) userMap[c] = reverseCipherMap[c];
+      }
+      renderBoard();
+      updateUI();
+    }
+  });
+
+  buildKeyboard();
+
+  function buildKeyboard() {
+    for (var r = 0; r < 3; r++) {
+      var rowEl = document.getElementById('kbRow' + (r + 1));
+      rowEl.innerHTML = '';
+      var rowKeys = KB_LAYOUT[r];
+      for (var k = 0; k < rowKeys.length; k++) {
+        var key = rowKeys[k];
+        var btn = document.createElement('button');
+        btn.className = 'key' + (key.length > 1 ? ' wide' : '');
+        btn.textContent = key;
+        btn.dataset.key = key;
+        btn.addEventListener('click', handleKeyPress);
+        rowEl.appendChild(btn);
+      }
+    }
+  }
+
+  function handleKeyPress(e) {
+    var key = e.currentTarget.dataset.key;
+    if (key === 'DEL') deleteGuess();
+    else if (key === 'SKIP') selectNextCipherChar();
+    else assignGuess(key);
+  }
+
+  function generateCipher(text) {
+    var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    var shuffled = letters.slice();
+
+    for (var i = shuffled.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var temp = shuffled[i];
+      shuffled[i] = shuffled[j];
+      shuffled[j] = temp;
+    }
+
+    for (var i = 0; i < letters.length; i++) {
+      if (shuffled[i] === letters[i]) {
+        var swapWith = (i + 1) % letters.length;
+        var t = shuffled[i];
+        shuffled[i] = shuffled[swapWith];
+        shuffled[swapWith] = t;
+      }
+    }
+
+    cipherMap = {};
+    reverseCipherMap = {};
+    for (var i = 0; i < letters.length; i++) {
+      cipherMap[letters[i]] = shuffled[i];
+      reverseCipherMap[shuffled[i]] = letters[i];
+    }
+  }
+
+  function loadQuote(index) {
+    currentQuoteIndex = index;
+    selQuote.value = index;
+    isSolved = false;
+    statusEl.className = 'status';
+    userMap = {};
+    lockedMap = {};
+
+    var q = QUOTES[index];
+    authorBox.textContent = '- ' + q.author;
+    generateCipher(q.text.toUpperCase());
+
+    var upper = q.text.toUpperCase();
+    selectedCipherChar = null;
+    for (var i = 0; i < upper.length; i++) {
+      var ch = upper[i];
+      if (ch >= 'A' && ch <= 'Z') {
+        selectedCipherChar = cipherMap[ch];
+        break;
+      }
+    }
+
+    renderBoard();
+    updateUI();
+  }
+
+  function renderBoard() {
+    boardEl.innerHTML = '';
+    var text = QUOTES[currentQuoteIndex].text;
+    var words = text.split(' ');
+
+    for (var w = 0; w < words.length; w++) {
+      var wordStr = words[w];
+      if (wordStr.length === 0) continue;
+
+      var wordEl = document.createElement('div');
+      wordEl.className = 'crypto-word';
+
+      for (var c = 0; c < wordStr.length; c++) {
+        var char = wordStr[c];
+        var upper = char.toUpperCase();
+
+        if (upper >= 'A' && upper <= 'Z') {
+          var cipherChar = cipherMap[upper];
+          var guessed = userMap[cipherChar] || '';
+          var isLocked = !!lockedMap[cipherChar];
+
+          var charEl = document.createElement('div');
+          charEl.className = 'crypto-char' +
+            (cipherChar === selectedCipherChar ? ' selected' : '') +
+            (userMap[cipherChar] ? ' has-guess' : '') +
+            (isLocked ? ' locked' : '');
+          charEl.dataset.cipher = cipherChar;
+
+          var guessSpan = document.createElement('span');
+          guessSpan.className = 'guess';
+          guessSpan.textContent = guessed;
+
+          var cipherSpan = document.createElement('span');
+          cipherSpan.className = 'cipher';
+          cipherSpan.textContent = cipherChar;
+
+          charEl.appendChild(guessSpan);
+          charEl.appendChild(cipherSpan);
+
+          charEl.addEventListener('click', function(e) {
+            var tgt = e.currentTarget;
+            selectedCipherChar = tgt.dataset.cipher;
+            renderBoard();
+            updateUI();
+          });
+
+          wordEl.appendChild(charEl);
+        } else {
+          var punctEl = document.createElement('div');
+          punctEl.className = 'crypto-punct';
+          punctEl.textContent = char;
+          wordEl.appendChild(punctEl);
+        }
+      }
+      boardEl.appendChild(wordEl);
+    }
+  }
+
+  function assignGuess(letter) {
+    if (!selectedCipherChar || isSolved) return;
+    if (lockedMap[selectedCipherChar]) return;
+
+    for (var c in userMap) {
+      if (userMap[c] === letter && c !== selectedCipherChar && !lockedMap[c]) {
+        delete userMap[c];
+      }
+    }
+
+    userMap[selectedCipherChar] = letter;
+    checkSolved();
+    selectNextCipherChar();
+    renderBoard();
+    updateUI();
+  }
+
+  function deleteGuess() {
+    if (!selectedCipherChar || isSolved) return;
+    if (lockedMap[selectedCipherChar]) return;
+
+    if (userMap[selectedCipherChar]) {
+      delete userMap[selectedCipherChar];
+      renderBoard();
+      updateUI();
+    }
+  }
+
+  function selectNextCipherChar() {
+    var text = QUOTES[currentQuoteIndex].text.toUpperCase();
+    var foundCurrent = false;
+    var nextChar = null;
+
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (ch >= 'A' && ch <= 'Z') {
+        var cipher = cipherMap[ch];
+        if (cipher === selectedCipherChar) {
+          foundCurrent = true;
+          continue;
+        }
+        if (foundCurrent && !userMap[cipher]) {
+          nextChar = cipher;
+          break;
+        }
+      }
+    }
+
+    if (!nextChar) {
+      for (var i = 0; i < text.length; i++) {
+        var ch = text[i];
+        if (ch >= 'A' && ch <= 'Z') {
+          var cipher = cipherMap[ch];
+          if (!userMap[cipher]) {
+            nextChar = cipher;
+            break;
+          }
+        }
+      }
+    }
+
+    if (nextChar) selectedCipherChar = nextChar;
+  }
+
+  function giveHint() {
+    if (isSolved) return;
+    var text = QUOTES[currentQuoteIndex].text.toUpperCase();
+    var candidates = [];
+
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (ch >= 'A' && ch <= 'Z') {
+        var cipher = cipherMap[ch];
+        if (!lockedMap[cipher] && userMap[cipher] !== ch) {
+          if (candidates.indexOf(cipher) === -1) candidates.push(cipher);
+        }
+      }
+    }
+
+    if (candidates.length === 0) return;
+
+    var hintCipher = candidates[0];
+    if (selectedCipherChar && candidates.indexOf(selectedCipherChar) !== -1) {
+      hintCipher = selectedCipherChar;
+    }
+
+    var truePlain = reverseCipherMap[hintCipher];
+    userMap[hintCipher] = truePlain;
+    lockedMap[hintCipher] = true;
+    selectedCipherChar = hintCipher;
+
+    checkSolved();
+    renderBoard();
+    updateUI();
+  }
+
+  function checkSolved() {
+    var text = QUOTES[currentQuoteIndex].text.toUpperCase();
+    var allCorrect = true;
+    var total = 0;
+
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (ch >= 'A' && ch <= 'Z') {
+        total++;
+        var cipher = cipherMap[ch];
+        if (userMap[cipher] !== ch) {
+          allCorrect = false;
+        }
+      }
+    }
+
+    if (allCorrect && total > 0) {
+      isSolved = true;
+      statusEl.className = 'status win';
+      statusEl.textContent = 'Quote Decoded! Excellent Work!';
+    }
+  }
+
+  function updateUI() {
+    if (isSolved) return;
+    var text = QUOTES[currentQuoteIndex].text.toUpperCase();
+    var distinctUsed = {};
+    var distinctTotal = {};
+
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (ch >= 'A' && ch <= 'Z') {
+        var cipher = cipherMap[ch];
+        distinctTotal[cipher] = true;
+        if (userMap[cipher]) distinctUsed[cipher] = true;
+      }
+    }
+
+    var filledCount = Object.keys(distinctUsed).length;
+    var totalDistinct = Object.keys(distinctTotal).length;
+    statusEl.textContent = 'Puzzle #' + (currentQuoteIndex + 1) + ' · ' + filledCount + ' / ' + totalDistinct + ' Letters Decoded';
+
+    var assignedLetters = {};
+    for (var c in userMap) assignedLetters[userMap[c]] = true;
+
+    var allKeys = document.querySelectorAll('.key');
+    for (var i = 0; i < allKeys.length; i++) {
+      var k = allKeys[i];
+      var letter = k.dataset.key;
+      if (letter && letter.length === 1) {
+        if (assignedLetters[letter]) k.classList.add('used');
+        else k.classList.remove('used');
+      }
+    }
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'SELECT') return;
+
+    var key = e.key.toUpperCase();
+    if (key >= 'A' && key <= 'Z' && key.length === 1) assignGuess(key);
+    else if (e.key === 'Backspace' || e.key === 'Delete') deleteGuess();
+    else if (e.key === 'ArrowRight' || e.key === 'Tab') {
+      e.preventDefault();
+      selectNextCipherChar();
+      renderBoard();
+      updateUI();
+    } else if (e.key === 'h' || e.key === 'H') giveHint();
+  });
+
+  loadQuote(0);
+})();
+</script>
+</body>
+</html>

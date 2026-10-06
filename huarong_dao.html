@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Huarong Dao (华容道)</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.app-container {
+  width: 100%;
+  max-width: 840px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 2px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.main-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+}
+.board-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+}
+.game-area {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1px 0;
+}
+.board-wrap {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.controller-wrap {
+  flex: 0 0 120px;
+  width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+.bottom-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+.action-bar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0;
+  min-width: 60px;
+  margin: 0;
+}
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 44px; min-height: 36px; line-height: 32px;
+  padding: 0 8px; margin: 0;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 15px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 1px; top: 1px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; }
+select.btn {
+  padding: 0 26px 0 8px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='8'%3E%3Cpath d='M8 0h12L14 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+select.btn:active { color: #000; background-color: #fff; }
+.status {
+  text-align: center; font-size: 14px; line-height: 1.25; padding: 4px 8px; min-height: 20px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px;
+  width: 100%; box-sizing: border-box;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+.info-box {
+  border: 2px solid #000; border-radius: 6px;
+  background: #eee; padding: 5px 4px; text-align: center;
+  font-size: 13px; line-height: 1.35; width: 100%; box-sizing: border-box;
+}
+.info-box b { font-size: 16px; }
+.help {
+  font-size: 14px; line-height: 1.4; margin: 3px 0 10px; padding: 0 12px 8px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 34px; padding-bottom: 0; }
+.help h2 {
+  font-size: 15px; margin: 0 -12px 6px; padding: 0 12px; height: 34px; line-height: 34px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "▴"; float: right; font-size: 16px; }
+.help.closed h2:after { content: "+"; }
+
+/* ===== Game specific ===== */
+.tray-container {
+  position: relative;
+  box-sizing: border-box;
+  border: 4px solid #000;
+  border-bottom: none;
+  background: #fff;
+}
+.tray-exit-bar {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  border-top: 4px solid #000;
+}
+.tray-exit-left, .tray-exit-right {
+  flex: 1 1 0;
+  height: 0;
+  border-top: 4px solid #000;
+}
+.tray-exit-gate {
+  flex: 2 2 0;
+  border-top: 4px dashed #777;
+  text-align: center;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  line-height: 14px;
+  color: #555;
+  margin-top: -2px;
+}
+.block {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #000;
+  border-radius: 6px;
+  background: #fff;
+  color: #000;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 2px;
+}
+.block.sel {
+  background: #000;
+  color: #fff;
+  border-color: #000;
+}
+.block-caocao {
+  background: #fff;
+  border-width: 3px;
+}
+.block-caocao.sel {
+  background: #000;
+  color: #fff;
+}
+.block-caocao .zh { font-size: 26px; font-weight: bold; line-height: 1.1; }
+.block-caocao .en { font-size: 12px; letter-spacing: 0.5px; }
+
+.block-general .zh { font-size: 20px; font-weight: bold; line-height: 1.1; }
+.block-general .en { font-size: 11px; }
+
+.block-soldier .zh { font-size: 19px; font-weight: bold; line-height: 1.1; }
+.block-soldier .en { font-size: 9px; }
+
+.empty-cell {
+  position: absolute;
+  box-sizing: border-box;
+  background: #f7f7f7;
+  border: 1px dashed #ccc;
+  border-radius: 4px;
+}
+.arrow-marker {
+  position: absolute;
+  box-sizing: border-box;
+  background: #000;
+  color: #fff;
+  border-radius: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: bold;
+  z-index: 10;
+}
+</style>
+</head>
+<body>
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status">Slide Cao Cao (曹操) down to the bottom exit</div>
+      <div class="game-area">
+        <div class="board-wrap">
+          <div class="tray-container" id="tray"></div>
+          <div class="tray-exit-bar" id="exitBar">
+            <div class="tray-exit-left"></div>
+            <div class="tray-exit-gate">EXIT &middot; 出口</div>
+            <div class="tray-exit-right"></div>
+          </div>
+        </div>
+        <div class="controller-wrap">
+          <div class="info-box" id="infoBox">
+            <div>Moves: <b id="lblMoves">0</b></div>
+            <div>Best: <b id="lblBest">-</b></div>
+          </div>
+          <select class="btn" id="selLayout">
+            <option value="0" selected>横刀立马 (81)</option>
+            <option value="1">近在咫尺 (38)</option>
+            <option value="2">层层设防 (65)</option>
+            <option value="3">前呼后拥 (78)</option>
+            <option value="4">兵挡义释 (84)</option>
+          </select>
+          <button class="btn" id="btnUndo">Undo</button>
+          <button class="btn" id="btnRestart">Restart</button>
+        </div>
+      </div>
+    </section>
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnRules">Rules</button>
+      </div>
+    </section>
+  </main>
+  <div class="help closed" id="helpBox">
+    <h2>How to play (Huarong Dao / 华容道)</h2>
+    <b>Objective:</b> Move the large 2&times;2 <b>Cao Cao (曹操)</b> block to the bottom center exit.<br>
+    <b>Controls:</b>
+    <ul>
+      <li><b>Tap to slide:</b> Tap any block that touches an empty space. If it can only move in one direction, it slides immediately!</li>
+      <li><b>Tap to select:</b> If a block can move in multiple directions, tap it to highlight it, then tap adjacent empty space or directional arrows.</li>
+      <li><b>Swipe:</b> You can also swipe any block in the direction you want it to slide.</li>
+      <li>Blocks can never overlap, jump, or rotate. Use <b>Undo</b> to step back.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function () {
+  var COLS = 4, ROWS = 5;
+
+  // Built-in classic configurations:
+  // Each piece: { id, nameZh, nameEn, type, x, y, w, h }
+  // type: 'caocao' (2x2), 'genH' (2x1), 'genV' (1x2), 'soldier' (1x1)
+  var LAYOUTS = [
+    {
+      name: "横刀立马 (Heng Dao Li Ma)",
+      min: 81,
+      pieces: [
+        { id: 'cc', zh: '曹操', en: 'Cao Cao', type: 'caocao', x: 1, y: 0, w: 2, h: 2 },
+        { id: 'zf', zh: '张飞', en: 'Zhang Fei', type: 'genV', x: 0, y: 0, w: 1, h: 2 },
+        { id: 'zy', zh: '赵云', en: 'Zhao Yun', type: 'genV', x: 3, y: 0, w: 1, h: 2 },
+        { id: 'gy', zh: '关羽', en: 'Guan Yu', type: 'genH', x: 1, y: 2, w: 2, h: 1 },
+        { id: 'hz', zh: '黄忠', en: 'Huang Zhong', type: 'genV', x: 0, y: 2, w: 1, h: 2 },
+        { id: 'mc', zh: '马超', en: 'Ma Chao', type: 'genV', x: 3, y: 2, w: 1, h: 2 },
+        { id: 's1', zh: '卒', en: 'Soldier', type: 'soldier', x: 1, y: 3, w: 1, h: 1 },
+        { id: 's2', zh: '卒', en: 'Soldier', type: 'soldier', x: 2, y: 3, w: 1, h: 1 },
+        { id: 's3', zh: '卒', en: 'Soldier', type: 'soldier', x: 0, y: 4, w: 1, h: 1 },
+        { id: 's4', zh: '卒', en: 'Soldier', type: 'soldier', x: 3, y: 4, w: 1, h: 1 }
+      ]
+    },
+    {
+      name: "近在咫尺 (Near Escape)",
+      min: 38,
+      pieces: [
+        { id: 'zf', zh: '张飞', en: 'Zhang Fei', type: 'genV', x: 0, y: 0, w: 1, h: 2 },
+        { id: 'gy', zh: '关羽', en: 'Guan Yu', type: 'genH', x: 1, y: 0, w: 2, h: 1 },
+        { id: 'zy', zh: '赵云', en: 'Zhao Yun', type: 'genV', x: 3, y: 0, w: 1, h: 2 },
+        { id: 'cc', zh: '曹操', en: 'Cao Cao', type: 'caocao', x: 1, y: 1, w: 2, h: 2 },
+        { id: 'hz', zh: '黄忠', en: 'Huang Zhong', type: 'genV', x: 0, y: 2, w: 1, h: 2 },
+        { id: 'mc', zh: '马超', en: 'Ma Chao', type: 'genV', x: 3, y: 2, w: 1, h: 2 },
+        { id: 's1', zh: '卒', en: 'Soldier', type: 'soldier', x: 1, y: 3, w: 1, h: 1 },
+        { id: 's2', zh: '卒', en: 'Soldier', type: 'soldier', x: 2, y: 3, w: 1, h: 1 },
+        { id: 's3', zh: '卒', en: 'Soldier', type: 'soldier', x: 1, y: 4, w: 1, h: 1 },
+        { id: 's4', zh: '卒', en: 'Soldier', type: 'soldier', x: 2, y: 4, w: 1, h: 1 }
+      ]
+    },
+    {
+      name: "层层设防 (Layered Siege)",
+      min: 65,
+      pieces: [
+        { id: 's1', zh: '卒', en: 'Soldier', type: 'soldier', x: 0, y: 0, w: 1, h: 1 },
+        { id: 'cc', zh: '曹操', en: 'Cao Cao', type: 'caocao', x: 1, y: 0, w: 2, h: 2 },
+        { id: 's2', zh: '卒', en: 'Soldier', type: 'soldier', x: 3, y: 0, w: 1, h: 1 },
+        { id: 's3', zh: '卒', en: 'Soldier', type: 'soldier', x: 0, y: 1, w: 1, h: 1 },
+        { id: 's4', zh: '卒', en: 'Soldier', type: 'soldier', x: 3, y: 1, w: 1, h: 1 },
+        { id: 'zf', zh: '张飞', en: 'Zhang Fei', type: 'genV', x: 0, y: 2, w: 1, h: 2 },
+        { id: 'gy', zh: '关羽', en: 'Guan Yu', type: 'genH', x: 1, y: 2, w: 2, h: 1 },
+        { id: 'zy', zh: '赵云', en: 'Zhao Yun', type: 'genV', x: 3, y: 2, w: 1, h: 2 },
+        { id: 'hz', zh: '黄忠', en: 'Huang Zhong', type: 'genV', x: 1, y: 3, w: 1, h: 2 },
+        { id: 'mc', zh: '马超', en: 'Ma Chao', type: 'genV', x: 2, y: 3, w: 1, h: 2 }
+      ]
+    },
+    {
+      name: "前呼后拥 (Escort)",
+      min: 78,
+      pieces: [
+        { id: 'zf', zh: '张飞', en: 'Zhang Fei', type: 'genV', x: 0, y: 0, w: 1, h: 2 },
+        { id: 'cc', zh: '曹操', en: 'Cao Cao', type: 'caocao', x: 1, y: 0, w: 2, h: 2 },
+        { id: 'zy', zh: '赵云', en: 'Zhao Yun', type: 'genV', x: 3, y: 0, w: 1, h: 2 },
+        { id: 'hz', zh: '黄忠', en: 'Huang Zhong', type: 'genV', x: 0, y: 2, w: 1, h: 2 },
+        { id: 's1', zh: '卒', en: 'Soldier', type: 'soldier', x: 1, y: 2, w: 1, h: 1 },
+        { id: 's2', zh: '卒', en: 'Soldier', type: 'soldier', x: 2, y: 2, w: 1, h: 1 },
+        { id: 'mc', zh: '马超', en: 'Ma Chao', type: 'genV', x: 3, y: 2, w: 1, h: 2 },
+        { id: 'gy', zh: '关羽', en: 'Guan Yu', type: 'genH', x: 1, y: 3, w: 2, h: 1 },
+        { id: 's3', zh: '卒', en: 'Soldier', type: 'soldier', x: 0, y: 4, w: 1, h: 1 },
+        { id: 's4', zh: '卒', en: 'Soldier', type: 'soldier', x: 3, y: 4, w: 1, h: 1 }
+      ]
+    },
+    {
+      name: "兵挡义释 (Soldier Defense)",
+      min: 84,
+      pieces: [
+        { id: 'zf', zh: '张飞', en: 'Zhang Fei', type: 'genV', x: 0, y: 0, w: 1, h: 2 },
+        { id: 'cc', zh: '曹操', en: 'Cao Cao', type: 'caocao', x: 1, y: 0, w: 2, h: 2 },
+        { id: 'zy', zh: '赵云', en: 'Zhao Yun', type: 'genV', x: 3, y: 0, w: 1, h: 2 },
+        { id: 's1', zh: '卒', en: 'Soldier', type: 'soldier', x: 0, y: 2, w: 1, h: 1 },
+        { id: 's2', zh: '卒', en: 'Soldier', type: 'soldier', x: 1, y: 2, w: 1, h: 1 },
+        { id: 's3', zh: '卒', en: 'Soldier', type: 'soldier', x: 2, y: 2, w: 1, h: 1 },
+        { id: 's4', zh: '卒', en: 'Soldier', type: 'soldier', x: 3, y: 2, w: 1, h: 1 },
+        { id: 'hz', zh: '黄忠', en: 'Huang Zhong', type: 'genV', x: 0, y: 3, w: 1, h: 2 },
+        { id: 'gy', zh: '关羽', en: 'Guan Yu', type: 'genH', x: 1, y: 3, w: 2, h: 1 },
+        { id: 'mc', zh: '马超', en: 'Ma Chao', type: 'genV', x: 3, y: 3, w: 1, h: 2 }
+      ]
+    }
+  ];
+
+  var currentLayoutIdx = 0;
+  var pieces = [];
+  var selectedId = null;
+  var moves = 0;
+  var history = [];
+  var won = false;
+  var cellS = 56; // pixel size per unit cell
+
+  var trayEl = document.getElementById('tray');
+  var exitBarEl = document.getElementById('exitBar');
+  var statusEl = document.getElementById('status');
+  var lblMoves = document.getElementById('lblMoves');
+  var lblBest = document.getElementById('lblBest');
+  var selLayout = document.getElementById('selLayout');
+  var btnUndo = document.getElementById('btnUndo');
+  var btnRestart = document.getElementById('btnRestart');
+  var helpBox = document.getElementById('helpBox');
+  var btnRules = document.getElementById('btnRules');
+
+  function store(k, v) {
+    try {
+      if (v === undefined) return localStorage.getItem(k);
+      localStorage.setItem(k, v);
+    } catch (e) { return null; }
+  }
+
+  function getBest(idx) {
+    var v = parseInt(store('huarongdao.best.' + idx), 10);
+    return isNaN(v) ? null : v;
+  }
+  function setBest(idx, score) {
+    var old = getBest(idx);
+    if (!old || score < old) store('huarongdao.best.' + idx, String(score));
+  }
+
+  function calcCellSize() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 600;
+    var h = window.innerHeight || document.documentElement.clientHeight || 800;
+    // Layout has tray (4 cols, 5 rows) and controller (120px) side-by-side
+    var availW = w - 145; // allow for controller and padding
+    var availH = h - 120; // allow for status, exit bar, bottom menu
+    var sW = Math.floor(availW / COLS);
+    var sH = Math.floor(availH / ROWS);
+    var s = Math.min(sW, sH);
+    return Math.max(50, Math.min(130, s));
+  }
+
+  function clonePieces(ps) {
+    return ps.map(function (p) {
+      return { id: p.id, zh: p.zh, en: p.en, type: p.type, x: p.x, y: p.y, w: p.w, h: p.h };
+    });
+  }
+
+  function loadLayout(idx) {
+    currentLayoutIdx = idx;
+    var layout = LAYOUTS[idx];
+    pieces = clonePieces(layout.pieces);
+    moves = 0;
+    history = [];
+    selectedId = null;
+    won = false;
+    updateStats();
+    render();
+  }
+
+  function updateStats() {
+    lblMoves.textContent = moves;
+    var b = getBest(currentLayoutIdx);
+    lblBest.textContent = b !== null ? b : '-';
+    btnUndo.disabled = history.length === 0 || won;
+    if (won) {
+      statusEl.className = 'status win';
+      statusEl.textContent = 'Victory! Cao Cao escaped in ' + moves + ' moves!';
+    } else {
+      statusEl.className = 'status';
+      statusEl.textContent = 'Moves: ' + moves + ' · Tap or swipe blocks to slide';
+    }
+  }
+
+  function getOccupiedGrid() {
+    var grid = [];
+    for (var y = 0; y < ROWS; y++) {
+      grid[y] = [];
+      for (var x = 0; x < COLS; x++) grid[y][x] = null;
+    }
+    for (var i = 0; i < pieces.length; i++) {
+      var p = pieces[i];
+      for (var dy = 0; dy < p.h; dy++) {
+        for (var dx = 0; dx < p.w; dx++) {
+          grid[p.y + dy][p.x + dx] = p.id;
+        }
+      }
+    }
+    return grid;
+  }
+
+  // Returns array of legal moves for piece p: [ { dx: -1, dy: 0, steps: 1 }, ... ]
+  function getLegalMoves(p) {
+    if (won) return [];
+    var grid = getOccupiedGrid();
+    var moves = [];
+
+    // Left
+    if (p.x > 0) {
+      var ok = true;
+      for (var y = p.y; y < p.y + p.h; y++) {
+        if (grid[y][p.x - 1] !== null) ok = false;
+      }
+      if (ok) {
+        moves.push({ dx: -1, dy: 0, steps: 1 });
+        // Check 2 steps if space
+        if (p.x > 1) {
+          var ok2 = true;
+          for (var y2 = p.y; y2 < p.y + p.h; y2++) {
+            if (grid[y2][p.x - 2] !== null) ok2 = false;
+          }
+          if (ok2) moves.push({ dx: -1, dy: 0, steps: 2 });
+        }
+      }
+    }
+
+    // Right
+    if (p.x + p.w < COLS) {
+      var ok = true;
+      for (var y = p.y; y < p.y + p.h; y++) {
+        if (grid[y][p.x + p.w] !== null) ok = false;
+      }
+      if (ok) {
+        moves.push({ dx: 1, dy: 0, steps: 1 });
+        if (p.x + p.w + 1 < COLS) {
+          var ok2 = true;
+          for (var y2 = p.y; y2 < p.y + p.h; y2++) {
+            if (grid[y2][p.x + p.w + 1] !== null) ok2 = false;
+          }
+          if (ok2) moves.push({ dx: 1, dy: 0, steps: 2 });
+        }
+      }
+    }
+
+    // Up
+    if (p.y > 0) {
+      var ok = true;
+      for (var x = p.x; x < p.x + p.w; x++) {
+        if (grid[p.y - 1][x] !== null) ok = false;
+      }
+      if (ok) {
+        moves.push({ dx: 0, dy: -1, steps: 1 });
+        if (p.y > 1) {
+          var ok2 = true;
+          for (var x2 = p.x; x2 < p.x + p.w; x2++) {
+            if (grid[p.y - 2][x2] !== null) ok2 = false;
+          }
+          if (ok2) moves.push({ dx: 0, dy: -1, steps: 2 });
+        }
+      }
+    }
+
+    // Down
+    if (p.y + p.h < ROWS) {
+      var ok = true;
+      for (var x = p.x; x < p.x + p.w; x++) {
+        if (grid[p.y + p.h][x] !== null) ok = false;
+      }
+      if (ok) {
+        moves.push({ dx: 0, dy: 1, steps: 1 });
+        if (p.y + p.h + 1 < ROWS) {
+          var ok2 = true;
+          for (var x2 = p.x; x2 < p.x + p.w; x2++) {
+            if (grid[p.y + p.h + 1][x2] !== null) ok2 = false;
+          }
+          if (ok2) moves.push({ dx: 0, dy: 1, steps: 2 });
+        }
+      }
+    }
+
+    return moves;
+  }
+
+  function applyMove(p, dx, dy, steps) {
+    history.push({
+      pieces: clonePieces(pieces),
+      moves: moves
+    });
+    p.x += dx * steps;
+    p.y += dy * steps;
+    moves++;
+    selectedId = null;
+
+    // Check win condition: Cao Cao reaches row 3, col 1
+    if (p.id === 'cc' && p.x === 1 && p.y === 3) {
+      won = true;
+      setBest(currentLayoutIdx, moves);
+    }
+
+    updateStats();
+    render();
+  }
+
+  function undoMove() {
+    if (!history.length || won) return;
+    var prev = history.pop();
+    pieces = prev.pieces;
+    moves = prev.moves;
+    selectedId = null;
+    won = false;
+    updateStats();
+    render();
+  }
+
+  function restartGame() {
+    loadLayout(currentLayoutIdx);
+  }
+
+  function onPieceClick(p) {
+    if (won) return;
+    var legal = getLegalMoves(p);
+    if (!legal.length) {
+      selectedId = null;
+      render();
+      return;
+    }
+
+    // If exactly 1 distinct direction is available, move immediately!
+    var distinctDirs = {};
+    for (var i = 0; i < legal.length; i++) {
+      var key = legal[i].dx + ',' + legal[i].dy;
+      distinctDirs[key] = legal[i];
+    }
+    var dirKeys = Object.keys(distinctDirs);
+
+    if (dirKeys.length === 1) {
+      // 1 direction: take maximum step in that direction
+      var bestM = legal[0];
+      for (var j = 1; j < legal.length; j++) {
+        if (legal[j].steps > bestM.steps) bestM = legal[j];
+      }
+      applyMove(p, bestM.dx, bestM.dy, bestM.steps);
+    } else {
+      // Multiple directions: toggle selection to show indicators
+      selectedId = (selectedId === p.id) ? null : p.id;
+      render();
+    }
+  }
+
+  function onPieceSwipe(p, dir) {
+    if (won) return;
+    var legal = getLegalMoves(p);
+    var dx = 0, dy = 0;
+    if (dir === 'left') dx = -1;
+    else if (dir === 'right') dx = 1;
+    else if (dir === 'up') dy = -1;
+    else if (dir === 'down') dy = 1;
+
+    var matched = [];
+    for (var i = 0; i < legal.length; i++) {
+      if (legal[i].dx === dx && legal[i].dy === dy) matched.push(legal[i]);
+    }
+    if (!matched.length) return;
+
+    // Move 1 step by default (or max if available)
+    matched.sort(function (a, b) { return a.steps - b.steps; });
+    applyMove(p, dx, dy, matched[0].steps);
+  }
+
+  function render() {
+    cellS = calcCellSize();
+    var s = cellS;
+    trayEl.style.width = (COLS * s) + 'px';
+    trayEl.style.height = (ROWS * s) + 'px';
+    exitBarEl.style.width = (COLS * s) + 'px';
+
+    var html = '';
+
+    // Render empty spaces
+    var grid = getOccupiedGrid();
+    for (var y = 0; y < ROWS; y++) {
+      for (var x = 0; x < COLS; x++) {
+        if (grid[y][x] === null) {
+          html += '<div class="empty-cell" style="left:' + (x * s + 2) + 'px;top:' + (y * s + 2) + 'px;width:' + (s - 4) + 'px;height:' + (s - 4) + 'px"></div>';
+        }
+      }
+    }
+
+    // Render pieces
+    for (var i = 0; i < pieces.length; i++) {
+      var p = pieces[i];
+      var isSel = (p.id === selectedId);
+      var cls = 'block block-' + (p.type === 'caocao' ? 'caocao' : (p.type === 'soldier' ? 'soldier' : 'general'));
+      if (isSel) cls += ' sel';
+
+      var px = p.x * s + 2;
+      var py = p.y * s + 2;
+      var pw = p.w * s - 4;
+      var ph = p.h * s - 4;
+
+      var zhFs = Math.floor(s * (p.type === 'caocao' ? 0.46 : p.type === 'soldier' ? 0.42 : 0.38));
+      var enFs = Math.max(9, Math.floor(s * (p.type === 'caocao' ? 0.17 : 0.14)));
+
+      html += '<div class="' + cls + '" id="p_' + p.id + '" data-id="' + p.id + '" style="left:' + px + 'px;top:' + py + 'px;width:' + pw + 'px;height:' + ph + 'px">';
+      html += '<span class="zh" style="font-size:' + zhFs + 'px">' + p.zh + '</span>';
+      html += '<span class="en" style="font-size:' + enFs + 'px">' + p.en + '</span>';
+      html += '</div>';
+    }
+
+    // If a piece is selected, render directional arrows over the target spaces
+    if (selectedId) {
+      var selPiece = null;
+      for (var k = 0; k < pieces.length; k++) {
+        if (pieces[k].id === selectedId) { selPiece = pieces[k]; break; }
+      }
+      if (selPiece) {
+        var legalMoves = getLegalMoves(selPiece);
+        var arrowFs = Math.floor(s * 0.38);
+        for (var m = 0; m < legalMoves.length; m++) {
+          var mv = legalMoves[m];
+          var arrowSymbol = '';
+          if (mv.dx === -1) arrowSymbol = '&#9664;';
+          else if (mv.dx === 1) arrowSymbol = '&#9654;';
+          else if (mv.dy === -1) arrowSymbol = '&#9650;';
+          else if (mv.dy === 1) arrowSymbol = '&#9660;';
+
+          var tx = (selPiece.x + mv.dx * mv.steps) * s + 4;
+          var ty = (selPiece.y + mv.dy * mv.steps) * s + 4;
+          var tw = selPiece.w * s - 8;
+          var th = selPiece.h * s - 8;
+
+          html += '<div class="arrow-marker" data-dx="' + mv.dx + '" data-dy="' + mv.dy + '" data-st="' + mv.steps + '" style="left:' + tx + 'px;top:' + ty + 'px;width:' + tw + 'px;height:' + th + 'px;font-size:' + arrowFs + 'px">' + arrowSymbol + '</div>';
+        }
+      }
+    }
+
+    trayEl.innerHTML = html;
+    bindPieceEvents();
+  }
+
+  function bindPieceEvents() {
+    var blockEls = trayEl.querySelectorAll('.block');
+    for (var i = 0; i < blockEls.length; i++) {
+      (function (el) {
+        var id = el.getAttribute('data-id');
+        var p = null;
+        for (var j = 0; j < pieces.length; j++) if (pieces[j].id === id) { p = pieces[j]; break; }
+        if (!p) return;
+
+        var startX = 0, startY = 0, moved = false;
+
+        el.addEventListener('click', function (e) {
+          if (!moved) onPieceClick(p);
+          moved = false;
+        });
+
+        el.addEventListener('touchstart', function (e) {
+          if (e.touches.length !== 1) return;
+          startX = e.touches[0].clientX;
+          startY = e.touches[0].clientY;
+          moved = false;
+        }, { passive: true });
+
+        el.addEventListener('touchend', function (e) {
+          var touch = e.changedTouches[0];
+          var dx = touch.clientX - startX;
+          var dy = touch.clientY - startY;
+          if (Math.max(Math.abs(dx), Math.abs(dy)) > 24) {
+            moved = true;
+            if (Math.abs(dx) > Math.abs(dy)) {
+              onPieceSwipe(p, dx > 0 ? 'right' : 'left');
+            } else {
+              onPieceSwipe(p, dy > 0 ? 'down' : 'up');
+            }
+          }
+        }, { passive: true });
+      })(blockEls[i]);
+    }
+
+    var arrowEls = trayEl.querySelectorAll('.arrow-marker');
+    for (var a = 0; a < arrowEls.length; a++) {
+      (function (ael) {
+        ael.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (!selectedId) return;
+          var dx = parseInt(ael.getAttribute('data-dx'), 10);
+          var dy = parseInt(ael.getAttribute('data-dy'), 10);
+          var st = parseInt(ael.getAttribute('data-st'), 10);
+          var p = null;
+          for (var j = 0; j < pieces.length; j++) if (pieces[j].id === selectedId) { p = pieces[j]; break; }
+          if (p) applyMove(p, dx, dy, st);
+        });
+      })(arrowEls[a]);
+    }
+  }
+
+  // Keyboard navigation support
+  document.addEventListener('keydown', function (e) {
+    if (won || !selectedId) return;
+    var p = null;
+    for (var j = 0; j < pieces.length; j++) if (pieces[j].id === selectedId) { p = pieces[j]; break; }
+    if (!p) return;
+
+    var dir = null;
+    if (e.key === 'ArrowLeft') dir = 'left';
+    else if (e.key === 'ArrowRight') dir = 'right';
+    else if (e.key === 'ArrowUp') dir = 'up';
+    else if (e.key === 'ArrowDown') dir = 'down';
+
+    if (dir) {
+      e.preventDefault();
+      onPieceSwipe(p, dir);
+    }
+  });
+
+  // UI Event Handlers
+  selLayout.addEventListener('change', function () {
+    loadLayout(parseInt(selLayout.value, 10));
+  });
+
+  btnUndo.addEventListener('click', undoMove);
+  btnRestart.addEventListener('click', restartGame);
+
+  btnRules.addEventListener('click', function () {
+    helpBox.className = (helpBox.className === 'help closed') ? 'help' : 'help closed';
+  });
+
+  window.addEventListener('resize', function () {
+    render();
+  });
+
+  // Initialize
+  loadLayout(0);
+})();
+</script>
+<script>
+/* Shared: fold the "How to play" box; tap its heading to open/close. */
+(function () {
+  var ds = document.getElementsByTagName('div'), i;
+  for (i = 0; i < ds.length; i++) if (ds[i].className.indexOf('help') >= 0) setup(ds[i]);
+  function setup(box) {
+    var h = box.getElementsByTagName('h2')[0];
+    if (!h) return;
+    h.onclick = function () { box.className = box.className.indexOf('closed') >= 0 ? 'help' : 'help closed'; };
+  }
+})();
+</script>
+</body>
+</html>

@@ -189,7 +189,7 @@
       // Game files in this folder. Kept up to date by update_index.ps1 (between the markers).
       // When the page is served by a web server with directory listing, the folder is also scanned live.
       /*FILES-START*/
-      var FILES = ["2048.html", "5_in_a_row.html", "backgammon.html", "blackjack.html", "checkers.html", "chess.html", "chinese_checker.html", "chinese_chess.html", "connect4.html", "corners.html", "dots_and_boxes.html", "go.html", "hangman.html", "light_out.html", "lost_pin.html", "minesweeper.html", "peg_solitaire.html", "reversi.html", "sudoku.html", "tic_tac_toe.html", "tower_of_hanoi.html"];
+  var FILES = ["2048.html", "5_in_a_row.html", "backgammon.html", "blackjack.html", "checkers.html", "chess.html", "chinese_checker.html", "chinese_chess.html", "connect4.html", "corners.html", "cryptogram.html", "dots_and_boxes.html", "freecell.html", "go.html", "hangman.html", "huarong_dao.html", "light_out.html", "lost_pin.html", "mahjong.html", "minesweeper.html", "peg_solitaire.html", "poker_solitaire.html", "reversi.html", "sokoban.html", "solitaire.html", "sudoku.html", "tic_tac_toe.html", "tower_of_hanoi.html"];
       /*FILES-END*/
 
       var IGNORE = { 'index.html': 1 };
@@ -200,8 +200,8 @@
           title: 'Strategy', files: ['chess.html', 'checkers.html', 'reversi.html', 'backgammon.html', 'chinese_chess.html', 'go.html',
             'connect4.html', '5_in_a_row.html', 'chinese_checker.html', 'corners.html', 'dots_and_boxes.html', 'tic_tac_toe.html']
         },
-        { title: 'Puzzles', files: ['sudoku.html', 'minesweeper.html', '2048.html', 'lost_pin.html', 'light_out.html', 'peg_solitaire.html', 'tower_of_hanoi.html'] },
-        { title: 'Cards &amp; Words', files: ['blackjack.html', 'hangman.html'] }
+        { title: 'Puzzles', files: ['mahjong.html', 'sokoban.html', 'cryptogram.html', 'sudoku.html', 'minesweeper.html', '2048.html', 'huarong_dao.html', 'lost_pin.html', 'light_out.html', 'peg_solitaire.html', 'tower_of_hanoi.html'] },
+        { title: 'Cards &amp; Words', files: ['solitaire.html', 'freecell.html', 'poker_solitaire.html', 'blackjack.html', 'hangman.html'] }
       ];
 
       // Shared SVG attributes: black strokes on a 64x64 canvas.
@@ -325,6 +325,74 @@
             '<g fill="#000"><circle cx="20" cy="32" r="4"/><circle cx="32" cy="32" r="4"/><circle cx="44" cy="32" r="4"/><circle cx="20" cy="43" r="4"/>' +
             '<circle cx="32" cy="43" r="4"/><circle cx="44" cy="43" r="4"/><circle cx="32" cy="53" r="4"/></g>' +
             '<text x="32" y="20" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Georgia,serif">* * * *</text>')
+        },
+        'huarong_dao.html': {
+          name: 'Huarong Dao', icon: svg(
+            '<rect x="10" y="6" width="44" height="52" ' + S + '/>' +
+            '<rect x="23" y="9" width="18" height="18" fill="#000"/>' +
+            '<text x="32" y="22" font-size="11" fill="#fff" text-anchor="middle" font-weight="bold">曹</text>' +
+            '<rect x="13" y="9" width="8" height="18" ' + S + '/>' +
+            '<rect x="43" y="9" width="8" height="18" ' + S + '/>' +
+            '<rect x="23" y="29" width="18" height="8" ' + S + '/>' +
+            '<rect x="13" y="29" width="8" height="18" ' + S + '/>' +
+            '<rect x="43" y="29" width="8" height="18" ' + S + '/>' +
+            '<rect x="23" y="39" width="8" height="8" ' + S + '/>' +
+            '<rect x="33" y="39" width="8" height="8" ' + S + '/>')
+        },
+        'sokoban.html': {
+          name: 'Sokoban', icon: svg(
+            '<rect x="6" y="6" width="52" height="52" ' + S + '/>' +
+            circ(22, 24, 5) + '<path d="M22 29v11M22 35h10M17 48l5-8 5 8" stroke="#000" stroke-width="2.5"/>' +
+            '<rect x="32" y="27" width="16" height="16" fill="#fff" stroke="#000" stroke-width="2.5"/>' +
+            '<path d="M32 27l16 16M48 27l-16 16" stroke="#000" stroke-width="1.5"/>' +
+            circ(52, 35, 3, '#000'))
+        },
+        'solitaire.html': {
+          name: 'Solitaire', icon: svg(
+            '<rect x="8" y="10" width="28" height="42" rx="3" fill="#fff" stroke="#000" stroke-width="2.5"/>' +
+            '<text x="16" y="24" font-size="13" font-weight="bold" font-family="Georgia,serif">K</text>' +
+            '<text x="26" y="42" font-size="13">♥</text>' +
+            '<rect x="24" y="14" width="28" height="42" rx="3" fill="#fff" stroke="#000" stroke-width="2.5"/>' +
+            '<text x="32" y="28" font-size="13" font-weight="bold" font-family="Georgia,serif">A</text>' +
+            '<text x="42" y="46" font-size="13">♠</text>')
+        },
+        'freecell.html': {
+          name: 'FreeCell', icon: svg(
+            '<rect x="6" y="8" width="11" height="15" rx="2" stroke="#000" stroke-width="1.5" stroke-dasharray="2 2" fill="none"/>' +
+            '<rect x="19" y="8" width="11" height="15" rx="2" stroke="#000" stroke-width="1.5" stroke-dasharray="2 2" fill="none"/>' +
+            '<rect x="34" y="8" width="11" height="15" rx="2" stroke="#000" stroke-width="1.5" fill="#eee"/>' +
+            '<rect x="47" y="8" width="11" height="15" rx="2" stroke="#000" stroke-width="1.5" fill="#eee"/>' +
+            '<rect x="12" y="27" width="18" height="28" rx="2" fill="#fff" stroke="#000" stroke-width="2"/>' +
+            '<text x="21" y="45" font-size="11" text-anchor="middle" font-weight="bold" font-family="Georgia,serif">7♠</text>' +
+            '<rect x="34" y="27" width="18" height="28" rx="2" fill="#fff" stroke="#000" stroke-width="2"/>' +
+            '<text x="43" y="45" font-size="11" text-anchor="middle" font-weight="bold" font-family="Georgia,serif">8♥</text>')
+        },
+        'poker_solitaire.html': {
+          name: 'Poker Solitaire', icon: svg(
+            '<rect x="6" y="6" width="52" height="52" rx="4" ' + S + '/>' +
+            '<path d="M6 16h52M6 27h52M6 37h52M6 48h52M16 6v52M27 6v52M37 6v52M48 6v52" stroke="#aaa" stroke-width="1"/>' +
+            '<rect x="18" y="18" width="28" height="28" rx="2" fill="#fff" stroke="#000" stroke-width="2"/>' +
+            '<text x="32" y="38" font-size="17" text-anchor="middle" font-weight="bold" font-family="Georgia,serif">A♠</text>')
+        },
+        'cryptogram.html': {
+          name: 'Cryptogram', icon: svg(
+            '<rect x="6" y="8" width="52" height="48" rx="4" ' + S + '/>' +
+            '<text x="16" y="26" font-size="15" font-weight="bold" text-anchor="middle" font-family="Georgia,serif">A</text>' +
+            '<line x1="10" y1="30" x2="22" y2="30" stroke="#000" stroke-width="2"/>' +
+            '<text x="16" y="46" font-size="13" text-anchor="middle" font-family="Georgia,serif">X</text>' +
+            '<text x="32" y="26" font-size="15" font-weight="bold" text-anchor="middle" font-family="Georgia,serif">B</text>' +
+            '<line x1="26" y1="30" x2="38" y2="30" stroke="#000" stroke-width="2"/>' +
+            '<text x="32" y="46" font-size="13" text-anchor="middle" font-family="Georgia,serif">Y</text>' +
+            '<text x="48" y="26" font-size="15" font-weight="bold" text-anchor="middle" font-family="Georgia,serif">C</text>' +
+            '<line x1="42" y1="30" x2="54" y2="30" stroke="#000" stroke-width="2"/>' +
+            '<text x="48" y="46" font-size="13" text-anchor="middle" font-family="Georgia,serif">Z</text>')
+        },
+        'mahjong.html': {
+          name: 'Mahjong', icon: svg(
+            '<rect x="8" y="14" width="30" height="42" rx="4" fill="#fff" stroke="#000" stroke-width="2.5"/>' +
+            '<rect x="26" y="8" width="30" height="42" rx="4" fill="#fff" stroke="#000" stroke-width="2.5"/>' +
+            '<text x="41" y="38" font-size="22" font-weight="bold" fill="#000" text-anchor="middle" font-family="\'Songti SC\',\'SimSun\',Georgia,serif">中</text>' +
+            '<text x="23" y="42" font-size="16" font-weight="bold" fill="#555" text-anchor="middle" font-family="\'Songti SC\',\'SimSun\',Georgia,serif">發</text>')
         }
       };
 

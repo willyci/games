@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mahjong (麻将配对)</title>
+<style>
+/* ===== Shared e-ink game style (keep in sync across games) ===== */
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body {
+  font-family: Georgia, "Times New Roman", "SimSun", "Songti SC", serif;
+  font-size: 16px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none; user-select: none;
+  -webkit-text-size-adjust: 100%;
+}
+.app-container {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.main-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.board-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.bottom-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.action-bar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.action-bar-grid .btn {
+  flex: 1 1 0;
+  min-width: 55px;
+  margin: 0;
+}
+.match-setup-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+.match-setup-row select.btn {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
+.btn {
+  display: inline-block; box-sizing: border-box; position: relative;
+  min-width: 44px; min-height: 36px; line-height: 32px;
+  padding: 0 8px; margin: 0;
+  border: 2px solid #000; border-radius: 6px; background: #fff; color: #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: Georgia, "Times New Roman", serif; font-size: 15px; font-weight: bold;
+  text-decoration: none; text-align: center; vertical-align: middle;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.btn:active, .btn.on { background: #000; color: #fff; }
+.btn:active { left: 1px; top: 1px; box-shadow: none; }
+.btn[disabled] { border-style: dashed; color: #888; box-shadow: none; left: 0; top: 0; background: #fff; cursor: default; }
+select.btn {
+  padding: 0 28px 0 10px; text-align: left;
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='8'%3E%3Cpath d='M8 0h12L14 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+}
+
+.status {
+  text-align: center; font-size: 15px; line-height: 1.25; padding: 5px 8px; min-height: 22px;
+  background: #eee; border: 1.5px solid #000; border-radius: 4px; width: 100%; box-sizing: border-box;
+}
+.status.win { background: #000; color: #fff; font-weight: bold; }
+
+.help {
+  font-size: 14px; line-height: 1.4; margin: 4px 0 14px; padding: 0 12px 10px;
+  border: 2px solid #000; border-radius: 6px; overflow: hidden;
+}
+.help.closed { height: 36px; padding-bottom: 0; }
+.help h2 {
+  font-size: 15px; margin: 0 -12px 6px; padding: 0 12px; height: 36px; line-height: 36px;
+  border-bottom: 1px solid #000; cursor: pointer;
+}
+.help h2:after { content: "▴"; float: right; font-size: 16px; }
+.help.closed h2:after { content: "+"; }
+
+/* ===== Game Viewport & Board ===== */
+.game-viewport {
+  position: relative;
+  width: 100%;
+  min-height: 460px;
+  border: 2px solid #000;
+  border-radius: 6px;
+  background: #fff;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.solitaire-board {
+  position: relative;
+  width: 100%;
+  height: 460px;
+  user-select: none;
+}
+
+/* Mahjong Tile Styles */
+.mj-tile {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1.5px solid #000;
+  border-radius: 4px;
+  background: #fff;
+  color: #000;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 2px 2px 0 #000, 3px 3px 0 #888;
+  user-select: none;
+}
+.mj-tile:hover {
+  outline: 2px solid #000;
+}
+.mj-tile.selected {
+  background: #000;
+  color: #fff;
+  outline: 2.5px solid #000;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #000;
+  z-index: 999 !important;
+}
+.mj-tile.selected svg {
+  filter: invert(1);
+}
+.mj-tile.selected .char-txt {
+  color: #fff;
+}
+.mj-tile.hinted {
+  background: #ddd;
+  outline: 2px dashed #000;
+}
+.mj-tile.blocked {
+  opacity: 0.5;
+  background: #f0f0f0;
+  cursor: not-allowed;
+}
+
+/* Tile Faces */
+.tile-face {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  padding: 2px;
+  box-sizing: border-box;
+}
+.char-num {
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1;
+}
+.char-sub {
+  font-size: 13px;
+  font-weight: bold;
+  line-height: 1;
+  margin-top: 1px;
+}
+.wind-dragon {
+  font-size: 25px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+/* Connecting Line Overlay */
+#connectCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1000;
+}
+</style>
+</head>
+<body>
+<div class="app-container">
+  <main class="main-layout">
+    <section class="board-column">
+      <div class="status" id="status">
+        Tiles: <b id="remainTiles">0</b> &nbsp;|&nbsp; Free Pairs: <b id="freePairs">0</b>
+      </div>
+      <div class="game-viewport" id="viewport">
+        <canvas id="connectCanvas"></canvas>
+        <div class="solitaire-board" id="board">
+          <!-- Tiles rendered here -->
+        </div>
+      </div>
+    </section>
+
+    <section class="bottom-menu">
+      <div class="action-bar-grid">
+        <a class="btn" href="index.html">&#8592; Games</a>
+        <button class="btn" id="btnUndo" disabled>Undo</button>
+        <button class="btn" id="btnHint">Hint</button>
+        <button class="btn" id="btnShuffle">Shuffle</button>
+        <button class="btn" id="btnNew">New</button>
+      </div>
+      <div class="match-setup-row">
+        <select class="btn" id="selMode">
+          <option value="solitaire" selected>Solitaire (Shanghai)</option>
+          <option value="connect">Connect 2 (连连看)</option>
+        </select>
+        <select class="btn" id="selLayout">
+          <option value="mini">Mini (36)</option>
+          <option value="pyramid" selected>Pyramid (72)</option>
+          <option value="turtle">Turtle (108)</option>
+        </select>
+      </div>
+    </section>
+  </main>
+
+  <div class="help closed" id="helpBox">
+    <h2>How to play (Mahjong / 麻将配对)</h2>
+    <b>Solitaire Mode:</b>
+    <ul>
+      <li>Tap two identical matching tiles to remove them.</li>
+      <li>A tile is <b>free</b> if it has no tiles stacked on top of it, and at least one left or right side is open. Blocked tiles are dimmed.</li>
+    </ul>
+    <b>Connect 2 Mode (连连看):</b>
+    <ul>
+      <li>Match two identical tiles that can be connected by a line with <b>at most 2 turns</b> through open space.</li>
+    </ul>
+    <b>Controls:</b>
+    <ul>
+      <li><b>Hint:</b> Highlights an available matching pair.</li>
+      <li><b>Shuffle:</b> Rearranges the remaining tiles if no moves are left.</li>
+      <li><b>Undo:</b> Reverses your last match.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function() {
+  var SUIT_WAN = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
+  var SUIT_WINDS = ['東', '南', '西', '北'];
+  var SUIT_DRAGONS = ['中', '發', '白'];
+
+  var mode = 'solitaire';
+  var currentLayout = 'pyramid';
+  var tiles = [];
+  var selectedTile = null;
+  var moveHistory = [];
+
+  var boardEl = document.getElementById('board');
+  var viewportEl = document.getElementById('viewport');
+  var connectCanvas = document.getElementById('connectCanvas');
+  var ctx = connectCanvas.getContext('2d');
+  var remainTilesEl = document.getElementById('remainTiles');
+  var freePairsEl = document.getElementById('freePairs');
+  var statusEl = document.getElementById('status');
+  var btnUndo = document.getElementById('btnUndo');
+  var btnHint = document.getElementById('btnHint');
+  var btnShuffle = document.getElementById('btnShuffle');
+  var btnNew = document.getElementById('btnNew');
+  var selMode = document.getElementById('selMode');
+  var selLayout = document.getElementById('selLayout');
+  var helpBox = document.getElementById('helpBox');
+
+  helpBox.querySelector('h2').addEventListener('click', function() {
+    helpBox.classList.toggle('closed');
+  });
+
+  selMode.addEventListener('change', function() {
+    mode = selMode.value;
+    selLayout.style.display = (mode === 'solitaire') ? 'inline-block' : 'none';
+    startNewGame();
+  });
+
+  selLayout.addEventListener('change', function() {
+    currentLayout = selLayout.value;
+    startNewGame();
+  });
+
+  btnUndo.addEventListener('click', undoMove);
+  btnHint.addEventListener('click', showHint);
+  btnShuffle.addEventListener('click', shuffleTiles);
+  btnNew.addEventListener('click', startNewGame);
+
+  window.addEventListener('resize', resizeCanvas);
+
+  function resizeCanvas() {
+    connectCanvas.width = viewportEl.clientWidth;
+    connectCanvas.height = viewportEl.clientHeight;
+  }
+
+  function getTileFaceHTML(tile) {
+    var type = tile.type;
+    var val = tile.value;
+
+    if (type === 'wan') {
+      return '<div class="tile-face">' +
+               '<span class="char-num">' + SUIT_WAN[val - 1] + '</span>' +
+               '<span class="char-sub">萬</span>' +
+             '</div>';
+    }
+    if (type === 'feng') {
+      return '<div class="tile-face"><span class="wind-dragon">' + val + '</span></div>';
+    }
+    if (type === 'dragon') {
+      if (val === '白') {
+        return '<div class="tile-face"><div style="width:18px; height:22px; border:2px solid #000; border-radius:2px;"></div></div>';
+      }
+      return '<div class="tile-face"><span class="wind-dragon">' + val + '</span></div>';
+    }
+    if (type === 'tong') {
+      return '<div class="tile-face">' + getDotsSVG(val) + '</div>';
+    }
+    if (type === 'tiao') {
+      return '<div class="tile-face">' + getBambooSVG(val) + '</div>';
+    }
+    return '<div class="tile-face">?</div>';
+  }
+
+  function getDotsSVG(n) {
+    var s = '<svg viewBox="0 0 32 38" width="26" height="32" xmlns="http://www.w3.org/2000/svg">';
+    function c(x, y, r, hollow) {
+      if (hollow) {
+        return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="none" stroke="#000" stroke-width="2.5"/><circle cx="' + x + '" cy="' + y + '" r="' + (r-3) + '" fill="#000"/>';
+      }
+      return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="#000"/>';
+    }
+    if (n === 1) return s + c(16, 19, 9, true) + '</svg>';
+    if (n === 2) return s + c(16, 11, 4.5) + c(16, 27, 4.5) + '</svg>';
+    if (n === 3) return s + c(9, 10, 4) + c(16, 19, 4) + c(23, 28, 4) + '</svg>';
+    if (n === 4) return s + c(10, 11, 4) + c(22, 11, 4) + c(10, 27, 4) + c(22, 27, 4) + '</svg>';
+    if (n === 5) return s + c(9, 10, 3.8) + c(23, 10, 3.8) + c(16, 19, 4) + c(9, 28, 3.8) + c(23, 28, 3.8) + '</svg>';
+    if (n === 6) return s + c(10, 9, 3.5) + c(22, 9, 3.5) + c(10, 19, 3.5) + c(22, 19, 3.5) + c(10, 29, 3.5) + c(22, 29, 3.5) + '</svg>';
+    if (n === 7) return s + c(8, 8, 3) + c(16, 11, 3) + c(24, 14, 3) + c(10, 23, 3) + c(22, 23, 3) + c(10, 31, 3) + c(22, 31, 3) + '</svg>';
+    if (n === 8) return s + c(10, 7, 3) + c(22, 7, 3) + c(10, 15, 3) + c(22, 15, 3) + c(10, 23, 3) + c(22, 23, 3) + c(10, 31, 3) + c(22, 31, 3) + '</svg>';
+    if (n === 9) return s + c(8, 8, 3) + c(16, 8, 3) + c(24, 8, 3) + c(8, 19, 3) + c(16, 19, 3) + c(24, 19, 3) + c(8, 30, 3) + c(16, 30, 3) + c(24, 30, 3) + '</svg>';
+    return s + '</svg>';
+  }
+
+  function getBambooSVG(n) {
+    var s = '<svg viewBox="0 0 32 38" width="26" height="32" xmlns="http://www.w3.org/2000/svg">';
+    function stick(x, y, h) {
+      return '<rect x="' + (x - 2) + '" y="' + y + '" width="4" height="' + h + '" rx="1" fill="#000"/><line x1="' + (x - 3) + '" y1="' + (y + h/2) + '" x2="' + (x + 3) + '" y2="' + (y + h/2) + '" stroke="#fff" stroke-width="1.2"/>';
+    }
+    if (n === 1) {
+      return s + '<path d="M16 6c3 0 6 3 5 7l3 3-3 2c-1 4-4 7-8 7-3 0-5-2-5-5 0-4 4-8 8-11z" fill="#000"/><circle cx="19" cy="9" r="1.5" fill="#fff"/><path d="M12 25l-4 7M16 25v7M20 25l4 7" stroke="#000" stroke-width="2"/>' + '</svg>';
+    }
+    if (n === 2) return s + stick(16, 7, 10) + stick(16, 21, 10) + '</svg>';
+    if (n === 3) return s + stick(16, 6, 8) + stick(10, 21, 10) + stick(22, 21, 10) + '</svg>';
+    if (n === 4) return s + stick(10, 7, 10) + stick(22, 7, 10) + stick(10, 21, 10) + stick(22, 21, 10) + '</svg>';
+    if (n === 5) return s + stick(8, 7, 9) + stick(24, 7, 9) + stick(16, 14, 9) + stick(8, 22, 9) + stick(24, 22, 9) + '</svg>';
+    if (n === 6) return s + stick(8, 6, 9) + stick(16, 6, 9) + stick(24, 6, 9) + stick(8, 21, 9) + stick(16, 21, 9) + stick(24, 21, 9) + '</svg>';
+    if (n === 7) return s + stick(16, 5, 7) + stick(8, 14, 8) + stick(16, 14, 8) + stick(24, 14, 8) + stick(8, 24, 8) + stick(16, 24, 8) + stick(24, 24, 8) + '</svg>';
+    if (n === 8) return s + stick(9, 5, 6) + stick(16, 5, 6) + stick(23, 5, 6) + stick(12, 14, 7) + stick(20, 14, 7) + stick(9, 24, 7) + stick(16, 24, 7) + stick(23, 24, 7) + '</svg>';
+    if (n === 9) return s + stick(8, 5, 7) + stick(16, 5, 7) + stick(24, 5, 7) + stick(8, 15, 7) + stick(16, 15, 7) + stick(24, 15, 7) + stick(8, 25, 7) + stick(16, 25, 7) + stick(24, 25, 7) + '</svg>';
+    return s + '</svg>';
+  }
+
+  function createTilePool(totalCount) {
+    var pool = [];
+    var kinds = [];
+
+    for (var i = 1; i <= 9; i++) kinds.push({ type: 'wan', value: i, key: 'wan_' + i });
+    for (var i = 1; i <= 9; i++) kinds.push({ type: 'tong', value: i, key: 'tong_' + i });
+    for (var i = 1; i <= 9; i++) kinds.push({ type: 'tiao', value: i, key: 'tiao_' + i });
+    for (var i = 0; i < SUIT_WINDS.length; i++) kinds.push({ type: 'feng', value: SUIT_WINDS[i], key: 'feng_' + SUIT_WINDS[i] });
+    for (var i = 0; i < SUIT_DRAGONS.length; i++) kinds.push({ type: 'dragon', value: SUIT_DRAGONS[i], key: 'dragon_' + SUIT_DRAGONS[i] });
+
+    for (var i = kinds.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = kinds[i]; kinds[i] = kinds[j]; kinds[j] = t;
+    }
+
+    var kindIndex = 0;
+    while (pool.length < totalCount) {
+      var k = kinds[kindIndex % kinds.length];
+      pool.push({ type: k.type, value: k.value, key: k.key });
+      pool.push({ type: k.type, value: k.value, key: k.key });
+      kindIndex++;
+    }
+
+    for (var i = pool.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+    }
+    return pool;
+  }
+
+  function getSolitaireCoords(layout) {
+    var coords = [];
+    if (layout === 'mini') {
+      for (var r = 0; r < 4; r++) {
+        for (var c = 0; c < 6; c++) {
+          coords.push({ x: c * 2, y: r * 2, z: 0 });
+        }
+      }
+      for (var r = 1; r < 3; r++) {
+        for (var c = 1; c < 5; c++) {
+          coords.push({ x: c * 2, y: r * 2, z: 1 });
+        }
+      }
+      coords.push({ x: 4, y: 2, z: 2 });
+      coords.push({ x: 6, y: 2, z: 2 });
+      coords.push({ x: 4, y: 4, z: 2 });
+      coords.push({ x: 6, y: 4, z: 2 });
+    } else if (layout === 'pyramid') {
+      for (var r = 0; r < 6; r++) {
+        for (var c = 0; c < 8; c++) {
+          if ((r === 0 || r === 5) && (c === 0 || c === 7)) continue;
+          coords.push({ x: c * 2, y: r * 2, z: 0 });
+        }
+      }
+      for (var r = 1; r < 5; r++) {
+        for (var c = 1; c < 7; c++) {
+          coords.push({ x: c * 2, y: r * 2, z: 1 });
+        }
+      }
+      for (var r = 2; r < 4; r++) {
+        for (var c = 2.5; c < 5.5; c += 1) {
+          coords.push({ x: c * 2, y: r * 2, z: 2 });
+        }
+      }
+      coords.push({ x: 6, y: 4.5, z: 3 });
+      coords.push({ x: 8, y: 4.5, z: 3 });
+    } else {
+      for (var r = 0; r < 8; r++) {
+        for (var c = 0; c < 12; c++) {
+          if ((r === 0 || r === 7) && (c < 3 || c > 8)) continue;
+          if ((r === 1 || r === 6) && (c < 1 || c > 10)) continue;
+          coords.push({ x: c * 2, y: r * 2, z: 0 });
+        }
+      }
+      coords = coords.slice(0, 76);
+      for (var r = 2; r < 6; r++) {
+        for (var c = 4; c < 9; c++) {
+          coords.push({ x: c * 2, y: r * 2, z: 1 });
+        }
+      }
+      for (var r = 3; r < 5; r++) {
+        for (var c = 5; c < 9; c++) {
+          coords.push({ x: c * 2, y: r * 2, z: 2 });
+        }
+      }
+      coords.push({ x: 12, y: 7, z: 3 });
+      coords.push({ x: 14, y: 7, z: 3 });
+      coords.push({ x: 12, y: 9, z: 3 });
+      coords.push({ x: 14, y: 9, z: 3 });
+    }
+
+    if (coords.length % 2 !== 0) coords.pop();
+    return coords;
+  }
+
+  function isTileFree(target, allTiles) {
+    if (!target || target.removed) return false;
+
+    for (var i = 0; i < allTiles.length; i++) {
+      var other = allTiles[i];
+      if (other.removed || other.id === target.id) continue;
+      if (other.z > target.z) {
+        var dx = Math.abs(other.x - target.x);
+        var dy = Math.abs(other.y - target.y);
+        if (dx < 2 && dy < 2) return false;
+      }
+    }
+
+    var blockedLeft = false;
+    var blockedRight = false;
+
+    for (var i = 0; i < allTiles.length; i++) {
+      var other = allTiles[i];
+      if (other.removed || other.id === target.id) continue;
+      if (other.z === target.z) {
+        var dy = Math.abs(other.y - target.y);
+        if (dy < 2) {
+          if (other.x + 2 > target.x && other.x < target.x) blockedLeft = true;
+          if (target.x + 2 > other.x && target.x < other.x) blockedRight = true;
+        }
+      }
+    }
+
+    return (!blockedLeft || !blockedRight);
+  }
+
+  function startNewGame() {
+    selectedTile = null;
+    moveHistory = [];
+    statusEl.className = 'status';
+    resizeCanvas();
+    ctx.clearRect(0, 0, connectCanvas.width, connectCanvas.height);
+
+    if (mode === 'solitaire') initSolitaireGame();
+    else initConnectGame();
+  }
+
+  function initSolitaireGame() {
+    boardEl.className = 'solitaire-board';
+    boardEl.innerHTML = '';
+
+    var coords = getSolitaireCoords(currentLayout);
+    var pool = createTilePool(coords.length);
+
+    tiles = [];
+    var minX = 999, maxX = -999, minY = 999, maxY = -999;
+    for (var i = 0; i < coords.length; i++) {
+      minX = Math.min(minX, coords[i].x);
+      maxX = Math.max(maxX, coords[i].x + 2);
+      minY = Math.min(minY, coords[i].y);
+      maxY = Math.max(maxY, coords[i].y + 2);
+    }
+
+    var boardWidth = boardEl.clientWidth || 600;
+    var boardHeight = 440;
+    var tileW = Math.min(50, Math.floor((boardWidth - 40) / ((maxX - minX) / 2)));
+    var tileH = Math.min(64, Math.floor((boardHeight - 40) / ((maxY - minY) / 2)));
+    tileW = Math.max(34, tileW);
+    tileH = Math.max(46, tileH);
+
+    var offsetX = (boardWidth - (maxX - minX) * (tileW / 2)) / 2 - minX * (tileW / 2);
+    var offsetY = (boardHeight - (maxY - minY) * (tileH / 2)) / 2 - minY * (tileH / 2);
+
+    for (var i = 0; i < coords.length; i++) {
+      var c = coords[i];
+      var p = pool[i];
+      var tileObj = {
+        id: i,
+        x: c.x,
+        y: c.y,
+        z: c.z,
+        type: p.type,
+        value: p.value,
+        key: p.key,
+        removed: false,
+        el: null
+      };
+
+      var el = document.createElement('div');
+      el.className = 'mj-tile';
+      el.style.width = tileW + 'px';
+      el.style.height = tileH + 'px';
+      var px = offsetX + c.x * (tileW / 2) + c.z * 3;
+      var py = offsetY + c.y * (tileH / 2) - c.z * 3;
+      el.style.left = px + 'px';
+      el.style.top = py + 'px';
+      el.style.zIndex = c.z * 100 + Math.floor(c.y * 10);
+      el.innerHTML = getTileFaceHTML(tileObj);
+      el.dataset.id = i;
+
+      el.addEventListener('click', handleTileClick);
+      tileObj.el = el;
+      tiles.push(tileObj);
+      boardEl.appendChild(el);
+    }
+
+    updateUI();
+  }
+
+  function handleTileClick(e) {
+    var id = parseInt(e.currentTarget.dataset.id, 10);
+    var tile = tiles[id];
+    if (!tile || tile.removed) return;
+
+    if (mode === 'solitaire') {
+      if (!isTileFree(tile, tiles)) return;
+
+      if (!selectedTile) {
+        selectedTile = tile;
+        tile.el.classList.add('selected');
+      } else if (selectedTile.id === tile.id) {
+        tile.el.classList.remove('selected');
+        selectedTile = null;
+      } else if (selectedTile.key === tile.key) {
+        performMatch(selectedTile, tile);
+      } else {
+        selectedTile.el.classList.remove('selected');
+        selectedTile = tile;
+        tile.el.classList.add('selected');
+      }
+    } else {
+      if (!selectedTile) {
+        selectedTile = tile;
+        tile.el.classList.add('selected');
+      } else if (selectedTile.id === tile.id) {
+        tile.el.classList.remove('selected');
+        selectedTile = null;
+      } else if (selectedTile.key === tile.key) {
+        var path = findConnectPath(selectedTile, tile);
+        if (path) {
+          drawConnectLine(path);
+          var t1 = selectedTile;
+          var t2 = tile;
+          selectedTile = null;
+          t1.el.classList.remove('selected');
+          setTimeout(function() {
+            performMatch(t1, t2);
+            ctx.clearRect(0, 0, connectCanvas.width, connectCanvas.height);
+          }, 200);
+        } else {
+          selectedTile.el.classList.remove('selected');
+          selectedTile = tile;
+          tile.el.classList.add('selected');
+        }
+      } else {
+        selectedTile.el.classList.remove('selected');
+        selectedTile = tile;
+        tile.el.classList.add('selected');
+      }
+    }
+  }
+
+  function performMatch(t1, t2) {
+    t1.removed = true;
+    t2.removed = true;
+    t1.el.style.display = 'none';
+    t2.el.style.display = 'none';
+    if (t1.el.classList.contains('selected')) t1.el.classList.remove('selected');
+    if (t2.el.classList.contains('selected')) t2.el.classList.remove('selected');
+    selectedTile = null;
+
+    moveHistory.push([t1, t2]);
+    clearHints();
+    updateUI();
+
+    var remaining = tiles.filter(function(t) { return !t.removed; }).length;
+    if (remaining === 0) {
+      statusEl.className = 'status win';
+      statusEl.textContent = 'Board Cleared! Excellent Job!';
+    }
+  }
+
+  function undoMove() {
+    if (moveHistory.length === 0) return;
+    var last = moveHistory.pop();
+    var t1 = last[0];
+    var t2 = last[1];
+    t1.removed = false;
+    t2.removed = false;
+    t1.el.style.display = 'flex';
+    t2.el.style.display = 'flex';
+    statusEl.className = 'status';
+    if (selectedTile) {
+      selectedTile.el.classList.remove('selected');
+      selectedTile = null;
+    }
+    clearHints();
+    updateUI();
+  }
+
+  function updateFreeState() {
+    if (mode !== 'solitaire') return;
+    for (var i = 0; i < tiles.length; i++) {
+      var t = tiles[i];
+      if (t.removed) continue;
+      var free = isTileFree(t, tiles);
+      if (free) {
+        t.el.classList.remove('blocked');
+      } else {
+        t.el.classList.add('blocked');
+      }
+    }
+  }
+
+  function countFreePairs() {
+    if (mode === 'solitaire') {
+      var freeList = [];
+      for (var i = 0; i < tiles.length; i++) {
+        if (!tiles[i].removed && isTileFree(tiles[i], tiles)) {
+          freeList.push(tiles[i]);
+        }
+      }
+      var pairs = 0;
+      var keys = {};
+      for (var i = 0; i < freeList.length; i++) {
+        var k = freeList[i].key;
+        keys[k] = (keys[k] || 0) + 1;
+      }
+      for (var k in keys) {
+        pairs += Math.floor(keys[k] / 2);
+      }
+      return { pairs: pairs, freeTiles: freeList };
+    } else {
+      var pairs = 0;
+      var active = tiles.filter(function(t) { return !t.removed; });
+      for (var i = 0; i < active.length; i++) {
+        for (var j = i + 1; j < active.length; j++) {
+          if (active[i].key === active[j].key) {
+            if (findConnectPath(active[i], active[j])) {
+              pairs++;
+            }
+          }
+        }
+      }
+      return { pairs: pairs, freeTiles: [] };
+    }
+  }
+
+  function updateUI() {
+    var remaining = tiles.filter(function(t) { return !t.removed; }).length;
+    remainTilesEl.textContent = remaining;
+
+    var stats = countFreePairs();
+    freePairsEl.textContent = stats.pairs;
+
+    btnUndo.disabled = (moveHistory.length === 0);
+
+    if (mode === 'solitaire') {
+      updateFreeState();
+    }
+  }
+
+  function clearHints() {
+    for (var i = 0; i < tiles.length; i++) {
+      tiles[i].el.classList.remove('hinted');
+    }
+  }
+
+  function showHint() {
+    clearHints();
+    if (mode === 'solitaire') {
+      var stats = countFreePairs();
+      var free = stats.freeTiles;
+      for (var i = 0; i < free.length; i++) {
+        for (var j = i + 1; j < free.length; j++) {
+          if (free[i].key === free[j].key) {
+            free[i].el.classList.add('hinted');
+            free[j].el.classList.add('hinted');
+            return;
+          }
+        }
+      }
+      alert('No free matching pairs available! Try Shuffle.');
+    } else {
+      var active = tiles.filter(function(t) { return !t.removed; });
+      for (var i = 0; i < active.length; i++) {
+        for (var j = i + 1; j < active.length; j++) {
+          if (active[i].key === active[j].key) {
+            if (findConnectPath(active[i], active[j])) {
+              active[i].el.classList.add('hinted');
+              active[j].el.classList.add('hinted');
+              return;
+            }
+          }
+        }
+      }
+      alert('No matching pairs can be connected! Try Shuffle.');
+    }
+  }
+
+  function shuffleTiles() {
+    var active = tiles.filter(function(t) { return !t.removed; });
+    if (active.length <= 1) return;
+
+    var faces = active.map(function(t) {
+      return { type: t.type, value: t.value, key: t.key };
+    });
+
+    for (var i = faces.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = faces[i]; faces[i] = faces[j]; faces[j] = tmp;
+    }
+
+    for (var i = 0; i < active.length; i++) {
+      var t = active[i];
+      var f = faces[i];
+      t.type = f.type;
+      t.value = f.value;
+      t.key = f.key;
+      t.el.innerHTML = getTileFaceHTML(t);
+    }
+
+    if (selectedTile) {
+      selectedTile.el.classList.remove('selected');
+      selectedTile = null;
+    }
+    clearHints();
+    updateUI();
+  }
+
+  var llkCols = 8;
+  var llkRows = 6;
+
+  function initConnectGame() {
+    boardEl.className = 'solitaire-board';
+    boardEl.innerHTML = '';
+
+    llkCols = 8;
+    llkRows = 6;
+    var total = llkCols * llkRows;
+    var pool = createTilePool(total);
+
+    tiles = [];
+    var boardWidth = boardEl.clientWidth || 600;
+    var boardHeight = 440;
+    var tileW = Math.min(48, Math.floor((boardWidth - 30) / llkCols));
+    var tileH = Math.min(62, Math.floor((boardHeight - 30) / llkRows));
+    tileW = Math.max(34, tileW);
+    tileH = Math.max(46, tileH);
+
+    var offsetX = (boardWidth - llkCols * tileW) / 2;
+    var offsetY = (boardHeight - llkRows * tileH) / 2;
+
+    var idx = 0;
+    for (var r = 0; r < llkRows; r++) {
+      for (var c = 0; c < llkCols; c++) {
+        var p = pool[idx];
+        var tileObj = {
+          id: idx,
+          col: c,
+          row: r,
+          type: p.type,
+          value: p.value,
+          key: p.key,
+          removed: false,
+          el: null
+        };
+
+        var el = document.createElement('div');
+        el.className = 'mj-tile';
+        el.style.width = tileW + 'px';
+        el.style.height = tileH + 'px';
+        el.style.left = (offsetX + c * tileW) + 'px';
+        el.style.top = (offsetY + r * tileH) + 'px';
+        el.innerHTML = getTileFaceHTML(tileObj);
+        el.dataset.id = idx;
+
+        el.addEventListener('click', handleTileClick);
+        tileObj.el = el;
+        tiles.push(tileObj);
+        boardEl.appendChild(el);
+        idx++;
+      }
+    }
+
+    updateUI();
+  }
+
+  function findConnectPath(t1, t2) {
+    if (t1.id === t2.id) return null;
+
+    var gridW = llkCols + 2;
+    var gridH = llkRows + 2;
+    var grid = [];
+    for (var r = 0; r < gridH; r++) {
+      grid[r] = new Array(gridW).fill(0);
+    }
+    for (var i = 0; i < tiles.length; i++) {
+      var t = tiles[i];
+      if (!t.removed) {
+        grid[t.row + 1][t.col + 1] = 1;
+      }
+    }
+
+    var startX = t1.col + 1;
+    var startY = t1.row + 1;
+    var endX = t2.col + 1;
+    var endY = t2.row + 1;
+    grid[startY][startX] = 0;
+    grid[endY][endX] = 0;
+
+    var DIRS = [{x: 0, y: -1}, {x: 1, y: 0}, {x: 0, y: 1}, {x: -1, y: 0}];
+    var queue = [{ x: startX, y: startY, dir: -1, turns: 0, path: [{x: startX, y: startY}] }];
+    var visited = {};
+
+    while (queue.length > 0) {
+      var curr = queue.shift();
+      if (curr.x === endX && curr.y === endY) {
+        return curr.path;
+      }
+
+      for (var d = 0; d < 4; d++) {
+        var nx = curr.x + DIRS[d].x;
+        var ny = curr.y + DIRS[d].y;
+        if (nx < 0 || nx >= gridW || ny < 0 || ny >= gridH) continue;
+        if (grid[ny][nx] === 1 && !(nx === endX && ny === endY)) continue;
+
+        var nextTurns = curr.turns + (curr.dir !== -1 && curr.dir !== d ? 1 : 0);
+        if (nextTurns > 2) continue;
+
+        var key = nx + ',' + ny + ',' + d;
+        if (visited[key] !== undefined && visited[key] <= nextTurns) continue;
+        visited[key] = nextTurns;
+
+        var newPath = curr.path.slice();
+        newPath.push({ x: nx, y: ny });
+        queue.push({ x: nx, y: ny, dir: d, turns: nextTurns, path: newPath });
+      }
+    }
+    return null;
+  }
+
+  function drawConnectLine(path) {
+    if (!path || path.length < 2) return;
+    ctx.clearRect(0, 0, connectCanvas.width, connectCanvas.height);
+
+    var tileW = parseFloat(tiles[0].el.style.width);
+    var tileH = parseFloat(tiles[0].el.style.height);
+    var offsetX = parseFloat(tiles[0].el.style.left);
+    var offsetY = parseFloat(tiles[0].el.style.top);
+
+    ctx.beginPath();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#000';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    for (var i = 0; i < path.length; i++) {
+      var p = path[i];
+      var px = offsetX + (p.x - 1) * tileW + tileW / 2;
+      var py = offsetY + (p.y - 1) * tileH + tileH / 2;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+
+  startNewGame();
+})();
+</script>
+</body>
+</html>
