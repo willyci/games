@@ -785,6 +785,59 @@
                 box-shadow: none !important;
             }
         }
+        /* ===== Buttons: match the other games (rounded, solid shadow, Georgia 16px) ===== */
+        .eink-btn,
+        .eink-select {
+            position: relative;
+            box-sizing: border-box;
+            min-height: 38px;
+            border: 2px solid var(--border-ink);
+            border-radius: 6px;
+            box-shadow: 2px 2px 0 var(--border-ink);
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 16px;
+            font-weight: bold;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        .eink-btn:active,
+        .eink-btn.active {
+            transform: none;
+            left: 1px;
+            top: 1px;
+            box-shadow: none;
+        }
+        .eink-select {
+            padding: 0 32px 0 10px;
+            text-align: left;
+            background: var(--btn-bg) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='8'%3E%3Cpath d='M12 0h12L18 8z'/%3E%3C/svg%3E") no-repeat 100% 50%;
+        }
+        body.theme-dark .eink-select { background-image: none; }
+        /* Spacing with margins instead of gap, so older Kindle browsers keep the space too */
+        .action-bar-grid,
+        .match-setup-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0;
+            width: auto;
+            margin: 0 -3px;
+        }
+        .action-bar-grid .eink-btn,
+        .match-setup-row .eink-btn,
+        .match-setup-row .eink-select {
+            margin: 3px;
+            min-height: 38px;
+        }
+        .action-bar-grid .eink-btn {
+            flex: 1 1 0;
+            min-width: 60px;
+            font-size: 16px;
+            padding: 0 8px;
+        }
+        .match-setup-row { flex-wrap: nowrap; }
+        .match-setup-row .eink-btn { padding: 0 10px; }
+        .match-setup-row .eink-select { padding: 0 32px 0 10px; }
+        .bottom-menu { gap: 4px; }
     </style>
 </head>
 
@@ -858,12 +911,7 @@
                 <!-- Primary Action Buttons Row (5 buttons) -->
                 <div class="action-bar-grid">
 
-                    <a class="eink-btn" id="btn-back" href="index.html" title="Back to game list">
-                        <svg class="ui-icon" viewBox="0 0 24 24">
-                            <polyline points="15 18 9 12 15 6" />
-                        </svg>
-                        <span>Back</span>
-                    </a>
+                    <a class="eink-btn" id="btn-back" href="index.html" title="Back to game list">&#8592; Games</a>
 
                     <button class="eink-btn" id="btn-undo" title="Take back move">
                         <svg class="ui-icon" viewBox="0 0 24 24">
